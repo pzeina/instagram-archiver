@@ -67,21 +67,33 @@ class Config:
 
     # -- validation ------------------------------------------------------
 
-    def problems(self) -> list[str]:
-        """Liste lisible de ce qui empeche un archivage de demarrer."""
-        issues: list[str] = []
+    def problems_detail(self) -> list[dict]:
+        """Ce qui empeche un archivage, avec l'etape concernee.
+
+        L'etape sert a l'interface : signaler « a corriger » sur les reglages
+        parce qu'aucun compte n'est renseigne designerait le mauvais endroit.
+        """
+        issues: list[dict] = []
         if not self.username.strip():
-            issues.append("Aucun compte Instagram renseigne.")
+            issues.append({"step": 1, "text": "Aucun compte Instagram renseigne."})
         elif not self.session_file().exists():
-            issues.append(f"Aucune session ouverte pour « {self.username} ».")
+            issues.append({"step": 1,
+                           "text": f"Aucune session ouverte pour « {self.username} »."})
         if self.sleep_min < MIN_SLEEP:
-            issues.append(f"La pause minimale ne peut pas descendre sous {MIN_SLEEP} s.")
+            issues.append({"step": 2,
+                           "text": f"La pause minimale ne peut pas descendre sous {MIN_SLEEP} s."})
         if self.sleep_max < self.sleep_min:
-            issues.append("La pause maximale est inferieure a la pause minimale.")
+            issues.append({"step": 2,
+                           "text": "La pause maximale est inferieure a la pause minimale."})
         parent = self.archive.parent
         if not parent.exists():
-            issues.append(f"Le dossier parent de destination n'existe pas : {parent}")
+            issues.append({"step": 2,
+                           "text": f"Le dossier parent de destination n'existe pas : {parent}"})
         return issues
+
+    def problems(self) -> list[str]:
+        """Liste lisible de ce qui empeche un archivage de demarrer."""
+        return [issue["text"] for issue in self.problems_detail()]
 
     # -- persistance -----------------------------------------------------
 

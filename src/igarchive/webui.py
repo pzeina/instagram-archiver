@@ -57,6 +57,7 @@ class AppState:
                        {"exists": False, "valid": False, "account": None},
             "summary": {**fetch.summary(cfg), **_collection_summary(cfg)},
             "problems": cfg.problems(),
+            "problems_detail": cfg.problems_detail(),
             "job": self.runner.state(),
         }
 

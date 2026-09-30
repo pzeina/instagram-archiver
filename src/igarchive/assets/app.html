@@ -3,268 +3,345 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>igarchive — archivage Instagram</title>
+<title>igarchive</title>
 <style>
+  /* Fiche d'archivage : marges, filets, colonnes libelle/valeur.
+     Aucune police distante : la charger ferait sortir une requete de la machine
+     a chaque ouverture, ce que cet outil promet de ne pas faire. */
   :root {
-    --bg:#f7f6f3; --panel:#fff; --fg:#1b1b19; --muted:#6e6e68; --line:#e4e2dc;
-    --accent:#3b5bdb; --accent-soft:#eef1fd; --ok:#2f7d4f; --warn:#9a6b00; --bad:#b3261e;
-    --radius:12px; --shadow:0 1px 3px rgba(0,0,0,.06);
+    --paper:#f7f8fa; --panel:#fff; --ink:#16181d; --ink-2:#565d6b; --ink-3:#8a909c;
+    --rule:#e2e6ec; --rule-2:#cdd3dc; --field:#fff;
+    --signal:#0e5a55; --signal-soft:#e6f0ef; --warn:#8a5a00; --bad:#a32d24;
+    --sans:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,"JetBrains Mono","DejaVu Sans Mono",Menlo,Consolas,monospace;
   }
   @media (prefers-color-scheme: dark) { :root:not([data-theme=light]) {
-    --bg:#141417; --panel:#1c1c21; --fg:#eceae6; --muted:#9b9992; --line:#2e2e35;
-    --accent:#8aa4ff; --accent-soft:#232a44; --ok:#6cc08b; --warn:#d7a53c; --bad:#f2837c;
-    --shadow:0 1px 3px rgba(0,0,0,.4);
+    --paper:#15171b; --panel:#1b1e23; --ink:#e8eaee; --ink-2:#a2a9b5; --ink-3:#727984;
+    --rule:#2a2e36; --rule-2:#3a3f49; --field:#121418;
+    --signal:#5cbbaf; --signal-soft:#17312f; --warn:#d6a44a; --bad:#e8857c;
   } }
+
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg);
-    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ubuntu,sans-serif; }
-  .wrap { max-width:780px; margin:0 auto; padding:28px 20px 80px; }
+  html { -webkit-text-size-adjust:100%; }
+  body { margin:0; background:var(--paper); color:var(--ink);
+    font:15px/1.6 var(--sans); font-variant-numeric:tabular-nums; }
+  .sheet { max-width:41rem; margin:0 auto; padding:2.5rem 1.5rem 6rem; }
 
-  header h1 { font-size:22px; margin:0 0 4px; letter-spacing:-.01em; }
-  header p { margin:0; color:var(--muted); font-size:14px; }
-  .pills { display:flex; gap:6px; flex-wrap:wrap; margin-top:12px; }
-  .pill { font-size:12px; padding:3px 10px; border-radius:99px;
-    border:1px solid var(--line); color:var(--muted); background:var(--panel); }
-  .pill.ok { color:var(--ok); border-color:currentColor; }
-  .pill.bad { color:var(--bad); border-color:currentColor; }
+  /* ---- en-tete : le bloc d'identification de la fiche ---- */
+  .masthead { display:flex; align-items:baseline; gap:1rem 1.5rem; flex-wrap:wrap; }
+  .masthead > div { flex:1 1 20rem; }
+  .build { margin-left:auto; }
+  .masthead h1 { font-size:1.5rem; line-height:1.2; letter-spacing:-.02em;
+    font-weight:600; margin:0; }
+  .masthead p { margin:.35rem 0 0; color:var(--ink-2); font-size:.875rem; max-width:30rem; }
+  .build { font:.75rem/1 var(--mono); color:var(--ink-3); white-space:nowrap; }
 
-  .step { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
-    padding:18px 20px; margin-top:16px; box-shadow:var(--shadow); }
-  .step > h2 { font-size:15px; margin:0 0 2px; display:flex; align-items:baseline; gap:9px; }
-  .num { display:inline-flex; align-items:center; justify-content:center; flex:none;
-    width:21px; height:21px; border-radius:50%; background:var(--accent-soft);
-    color:var(--accent); font-size:11.5px; font-weight:700; }
-  .hint { color:var(--muted); font-size:13.5px; margin:0 0 14px 30px; }
-  .hint a { color:var(--accent); }
+  .ledger { display:grid; gap:.1rem .25rem; margin:1.5rem 0 0;
+    grid-template-columns:auto 1fr; font-size:.8125rem; }
+  .ledger dt { color:var(--ink-3); padding-right:1.25rem; }
+  .ledger dd { margin:0; font-family:var(--mono); font-size:.8125rem;
+    overflow-wrap:anywhere; }
+  .ledger dd.off { color:var(--ink-3); font-family:var(--sans); font-style:italic; }
 
-  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:10px; }
-  .field { display:flex; flex-direction:column; gap:4px; flex:1 1 180px; min-width:0; }
-  .field.narrow { flex:0 0 138px; }
-  label { font-size:12.5px; color:var(--muted); }
-  input[type=text], input[type=password], input[type=number], select {
-    width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:8px;
-    background:var(--bg); color:var(--fg); font-size:14px; font-family:inherit; }
-  input:focus, select:focus { outline:2px solid var(--accent); outline-offset:-1px; }
-  textarea { width:100%; min-height:72px; padding:8px 11px; border:1px solid var(--line);
-    border-radius:8px; background:var(--bg); color:var(--fg); font-size:13px;
-    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; resize:vertical; }
+  /* ---- sections numerotees, separees par un filet et non par une boite ---- */
+  .step { padding-top:1.75rem; margin-top:1.75rem; border-top:1px solid var(--rule); }
+  .step > header { display:flex; align-items:baseline; gap:.75rem; }
+  .idx { font:.75rem/1.4 var(--mono); color:var(--ink-3); flex:none;
+    width:1.25rem; text-align:right; }
+  .step h2 { font-size:1rem; font-weight:600; letter-spacing:-.01em; margin:0; flex:1; }
+  .state { font-size:.8125rem; color:var(--ink-3); white-space:nowrap; }
+  .state.on { color:var(--signal); }
+  .state.off { color:var(--bad); }
+  .state.busy::before { content:""; display:inline-block; width:.4rem; height:.4rem;
+    border-radius:50%; background:var(--signal); margin-right:.4rem;
+    vertical-align:.05rem; animation:beat 1.4s ease-in-out infinite; }
+  @keyframes beat { 0%,100% { opacity:1 } 50% { opacity:.25 } }
+  @media (prefers-reduced-motion: reduce) { .state.busy::before { animation:none } }
 
-  button { padding:8px 14px; border:1px solid var(--line); border-radius:8px;
-    background:var(--panel); color:var(--fg); font-size:13.5px; font-family:inherit;
+  .lead { color:var(--ink-2); font-size:.875rem; margin:.5rem 0 1.25rem 2rem;
+    max-width:33rem; }
+  .lead a { color:var(--signal); }
+  .body { margin-left:2rem; }
+  @media (max-width:34rem) { .lead, .body { margin-left:0; } }
+
+  /* ---- lignes libelle / champ ---- */
+  .row { display:grid; grid-template-columns:8.5rem 1fr; gap:.5rem 1rem;
+    align-items:center; padding:.3rem 0; }
+  .row > label, .row > .key { color:var(--ink-2); font-size:.8125rem; padding-top:.1rem; }
+  .ctrl { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; min-width:0; }
+  .ctrl > input[type=text], .ctrl > select { flex:1 1 11rem; min-width:0; }
+  @media (max-width:34rem) { .row { grid-template-columns:1fr; gap:.25rem; } }
+
+  input[type=text], input[type=password], input[type=number], select, textarea {
+    font:14px/1.45 var(--sans); color:var(--ink); background:var(--field);
+    border:1px solid var(--rule-2); border-radius:3px; padding:.4rem .55rem; }
+  input[type=text], input[type=number] { font-family:var(--mono); font-size:13px; }
+  input[type=number] { width:4.5rem; }
+  textarea { width:100%; min-height:4.5rem; font:12.5px/1.5 var(--mono); resize:vertical; }
+  input[type=file] { font-size:.8125rem; color:var(--ink-2); max-width:100%; }
+  :focus-visible { outline:2px solid var(--signal); outline-offset:1px; }
+
+  button, .asbtn { display:inline-block; font:13.5px/1 var(--sans); color:var(--ink);
+    background:var(--panel);
+    border:1px solid var(--rule-2); border-radius:3px; padding:.45rem .8rem;
     cursor:pointer; white-space:nowrap; }
-  button:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
-  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
-  button.primary:hover:not(:disabled) { filter:brightness(1.08); color:#fff; }
-  button.danger:hover:not(:disabled) { border-color:var(--bad); color:var(--bad); }
-  button:disabled { opacity:.45; cursor:not-allowed; }
+  button:hover:not(:disabled), .asbtn:hover { border-color:var(--signal); color:var(--signal); }
+  button.go { background:var(--signal); border-color:var(--signal); color:var(--paper);
+    font-weight:500; }
+  button.go:hover:not(:disabled) { filter:brightness(1.12); color:var(--paper); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
 
-  .colls { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
-  .colls:empty { display:none; }
-  .coll { font-size:11.5px; padding:2px 9px; border-radius:99px;
-    background:var(--accent-soft); color:var(--accent); }
-  .coll.muted { background:transparent; border:1px solid var(--line); color:var(--muted); }
-  .checks { display:flex; gap:16px; flex-wrap:wrap; margin:6px 0 12px; }
-  .check { display:flex; align-items:center; gap:7px; font-size:13.5px; color:var(--fg); }
-  .check input { width:15px; height:15px; accent-color:var(--accent); }
+  .pick { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+  .pick:focus-visible + label { outline:2px solid var(--signal); outline-offset:1px; }
+  .picked { font:12px/1.45 var(--mono); color:var(--ink-3); overflow-wrap:anywhere; }
+  .checks { display:flex; gap:1.25rem; flex-wrap:wrap; }
+  .check { display:flex; align-items:center; gap:.4rem; font-size:.875rem; }
+  .check input { accent-color:var(--signal); width:.9rem; height:.9rem; }
+  .actions { display:flex; gap:.5rem; flex-wrap:wrap; margin-top:1rem; }
 
-  details { margin-top:10px; border-top:1px solid var(--line); padding-top:10px; }
-  summary { cursor:pointer; font-size:13.5px; color:var(--muted); }
-  summary:hover { color:var(--accent); }
-  details > *:not(summary) { margin-top:10px; }
+  .note { font-size:.8125rem; color:var(--ink-3); margin:.6rem 0 0; max-width:33rem; }
+  .note code { font-family:var(--mono); font-size:.75rem; }
 
-  .note { font-size:12.5px; color:var(--muted); margin:8px 0 0; }
-  .msg { margin-top:10px; padding:9px 12px; border-radius:8px; font-size:13.5px;
-    border:1px solid var(--line); background:var(--bg); white-space:pre-wrap; }
-  .msg.ok { color:var(--ok); border-color:currentColor; }
-  .msg.bad { color:var(--bad); border-color:currentColor; }
+  details { margin-top:1rem; }
+  summary { font-size:.8125rem; color:var(--ink-2); cursor:pointer; width:fit-content; }
+  summary:hover { color:var(--signal); }
+  details[open] > summary { margin-bottom:.75rem; }
+  .sub { border-left:2px solid var(--rule); padding-left:1rem; margin-bottom:1rem; }
+
+  .msg { margin-top:.9rem; font-size:.8125rem; white-space:pre-wrap; padding-left:.75rem;
+    border-left:2px solid var(--rule-2); color:var(--ink-2); }
   .msg:empty { display:none; }
+  .msg.ok { border-color:var(--signal); color:var(--signal); }
+  .msg.bad { border-color:var(--bad); color:var(--bad); }
 
-  .stats { display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(104px,1fr));
-    margin:4px 0 12px; }
-  .stat { border:1px solid var(--line); border-radius:9px; padding:9px 11px; background:var(--bg); }
-  .stat b { display:block; font-size:19px; font-weight:650; letter-spacing:-.01em; }
-  .stat span { font-size:11.5px; color:var(--muted); }
-
-  .bar { height:5px; border-radius:99px; background:var(--line); overflow:hidden; margin:10px 0; }
-  .bar i { display:block; height:100%; background:var(--accent); width:0;
-    transition:width .4s ease; }
-  .bar.busy i { width:35% !important; animation:slide 1.5s ease-in-out infinite; }
-  @keyframes slide { 0%{margin-left:-35%} 100%{margin-left:100%} }
-  .current { font-size:13px; color:var(--muted); min-height:1.6em; }
-
-  .log { margin-top:10px; max-height:190px; overflow:auto; padding:10px 12px;
-    border:1px solid var(--line); border-radius:8px; background:var(--bg);
-    font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;
-    color:var(--muted); white-space:pre-wrap; }
-  .log:empty { display:none; }
-  .problems { margin:0 0 12px; padding-left:20px; color:var(--warn); font-size:13.5px; }
+  .problems { margin:0 0 1rem; padding-left:1.1rem; color:var(--warn); font-size:.8125rem; }
   .problems:empty { display:none; }
-  @media (max-width:560px) { .field { flex:1 1 100%; } }
+
+  /* ---- compteurs : valeurs en chasse fixe, libelles discrets ---- */
+  .tally { display:flex; gap:1.5rem; flex-wrap:wrap; margin-top:1rem; }
+  .tally div { font-size:.75rem; color:var(--ink-3); }
+  .tally b { display:block; font:1.125rem/1.3 var(--mono); font-weight:500; color:var(--ink); }
+  .now { margin-top:.9rem; font:.8125rem/1.5 var(--mono); color:var(--ink-2);
+    min-height:1.5em; overflow-wrap:anywhere; }
+
+  .log { margin-top:.9rem; max-height:11rem; overflow:auto; padding:.6rem .75rem;
+    border:1px solid var(--rule); border-radius:3px; background:var(--field);
+    font:11.5px/1.7 var(--mono); color:var(--ink-3); white-space:pre-wrap; }
+  .log:empty { display:none; }
+
+  .chips { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.9rem; }
+  .chips:empty { display:none; }
+  .chip { font:.75rem/1.5 var(--sans); padding:.1rem .5rem; border-radius:2px;
+    background:var(--signal-soft); color:var(--signal); }
+  .chip i { font-style:normal; font-family:var(--mono); opacity:.65;
+    margin-left:.4rem; font-size:.7rem; }
+  .chip.none { background:transparent; border:1px solid var(--rule); color:var(--ink-3); }
 </style>
 </head>
 <body>
-<div class="wrap">
+<main class="sheet">
 
-<header>
-  <h1>igarchive</h1>
-  <p>Sauvegarde locale de vos contenus Instagram enregistrés — vidéos, descriptions et dates.</p>
-  <div class="pills">
-    <span class="pill" id="pill-version">…</span>
-    <span class="pill" id="pill-platform">…</span>
-    <span class="pill" id="pill-session">session inconnue</span>
+<header class="masthead">
+  <div>
+    <h1>igarchive</h1>
+    <p>Sauvegarde locale de vos contenus Instagram enregistrés : les vidéos, les
+       descriptions et les dates.</p>
   </div>
+  <span class="build"><span id="pill-version">…</span> <span id="pill-platform"></span></span>
 </header>
 
-<!-- 1 ------------------------------------------------------------------ -->
+<dl class="ledger">
+  <dt>Compte</dt><dd id="led-account" class="off">aucune session</dd>
+  <dt>Destination</dt><dd id="led-path">…</dd>
+  <dt>Archivé</dt><dd id="led-count">…</dd>
+</dl>
+
+<!-- 1 ---------------------------------------------------------------- -->
 <section class="step">
-  <h2><span class="num">1</span> Compte Instagram</h2>
-  <p class="hint">Le plus simple : connectez-vous à instagram.com dans Firefox, puis reprenez ses
-     cookies ici. Aucun mot de passe n'est enregistré.</p>
-
-  <div class="row">
-    <div class="field"><label for="username">Identifiant Instagram</label>
-      <input type="text" id="username" placeholder="votre_pseudo" autocomplete="username"></div>
-    <div class="field narrow"><label for="browser">Navigateur</label>
-      <select id="browser"></select></div>
-    <button class="primary" id="btn-connect">Connecter</button>
-  </div>
-  <p class="note">Chrome, Safari, Edge et Brave nécessitent le paquet <code>browser-cookie3</code>.</p>
-
-  <details>
-    <summary>Une autre méthode (si la lecture automatique échoue)</summary>
-    <div>
-      <label for="cookie">Coller le cookie <code>sessionid</code>, ou l'en-tête Cookie entier</label>
-      <textarea id="cookie" placeholder="sessionid=12345%3AAbCdEf%3A7…"></textarea>
-      <p class="note">Dans le navigateur : outils de développement → Application → Cookies →
-         instagram.com → <code>sessionid</code>. Fonctionne partout, y compris sans navigateur local.</p>
-      <div class="row"><button id="btn-cookie">Utiliser ce cookie</button></div>
-    </div>
-    <div>
-      <div class="row">
-        <div class="field"><label for="pw-user">Identifiant</label>
-          <input type="text" id="pw-user" autocomplete="username"></div>
-        <div class="field"><label for="pw-pass">Mot de passe</label>
-          <input type="password" id="pw-pass" autocomplete="current-password"></div>
-        <button id="btn-password">Se connecter</button>
-      </div>
-      <p class="note">Transmis directement à Instagram, jamais écrit sur le disque. La double
-         authentification n'est pas gérée par cette voie : utilisez alors le cookie.</p>
-    </div>
-    <div class="row"><button class="danger" id="btn-forget">Oublier la session</button></div>
-  </details>
-  <div class="msg" id="msg-session"></div>
-</section>
-
-<!-- 2 ------------------------------------------------------------------ -->
-<section class="step">
-  <h2><span class="num">2</span> Destination et rythme</h2>
-  <p class="hint">Les pauses entre deux contenus sont volontairement longues : c'est ce qui évite
-     qu'Instagram limite le compte. Comptez environ une heure pour 500 contenus.</p>
-
-  <div class="row">
-    <div class="field"><label for="archive_dir">Dossier de destination</label>
-      <input type="text" id="archive_dir" placeholder="~/InstagramArchive"></div>
-  </div>
-  <div class="row">
-    <div class="field narrow"><label for="sleep_min">Pause min. (s)</label>
-      <input type="number" id="sleep_min" min="1" step="0.5"></div>
-    <div class="field narrow"><label for="sleep_max">Pause max. (s)</label>
-      <input type="number" id="sleep_max" min="1" step="0.5"></div>
-    <div class="field narrow"><label for="limit_per_run">Plafond par passe</label>
-      <input type="number" id="limit_per_run" min="0" step="10"></div>
-    <div class="field narrow"><label for="stop_after_known">Arrêt après N connus</label>
-      <input type="number" id="stop_after_known" min="0" step="5"></div>
-  </div>
-  <div class="checks">
-    <label class="check"><input type="checkbox" id="download_videos"> Télécharger les vidéos</label>
-    <label class="check"><input type="checkbox" id="download_thumbnails"> Vignettes</label>
-    <label class="check"><input type="checkbox" id="download_comments"> Commentaires (lent)</label>
-  </div>
-  <p class="note">« Plafond par passe » et « arrêt après N connus » valent 0 pour « sans limite ».
-     Mettre 20 dans le second transforme l'archivage en simple mise à jour.</p>
-  <div class="row"><button class="primary" id="btn-save">Enregistrer les réglages</button></div>
-  <div class="msg" id="msg-config"></div>
-</section>
-
-<!-- 3 ------------------------------------------------------------------ -->
-<section class="step">
-  <h2><span class="num">3</span> Dates d'enregistrement</h2>
-  <p class="hint">Instagram n'expose pas la date à laquelle vous avez enregistré un contenu, seulement
-     l'ordre. Seul l'export officiel la contient. Demandez-le sur
-     <a href="https://accountscenter.instagram.com/info_and_permissions/dyi/" target="_blank"
-        rel="noopener">accountscenter.instagram.com</a> — format <b>JSON</b>, en cochant
-     « Éléments enregistrés ». Il arrive sous quelques heures à 48 h ; l'archivage peut tourner
-     sans l'attendre.</p>
-
-  <div class="row">
-    <div class="field"><label for="export-file">Fichier .zip reçu d'Instagram</label>
-      <input type="file" id="export-file" accept=".zip"></div>
-    <button id="btn-upload">Lire l'export</button>
-    <button id="btn-auto">Chercher tout seul</button>
-  </div>
-  <p class="note">« Chercher tout seul » regarde dans vos téléchargements et sur votre
-     bureau. Un export volumineux arrive découpé en plusieurs archives : elles sont
-     toutes lues.</p>
-  <div id="colls" class="colls"></div>
-  <details>
-    <summary>Indiquer un chemin plutôt qu'envoyer le fichier</summary>
+  <header><span class="idx">1</span><h2>Compte Instagram</h2>
+    <span class="state" id="st-1"></span></header>
+  <p class="lead">Connectez-vous à instagram.com dans Firefox, puis reprenez ses cookies.
+     Aucun mot de passe n'est enregistré.</p>
+  <div class="body">
     <div class="row">
-      <div class="field"><label for="export-path">Chemin du .zip ou du dossier décompressé</label>
-        <input type="text" id="export-path" placeholder="~/Downloads/instagram-export.zip"></div>
-      <button id="btn-path">Lire ce chemin</button>
+      <label for="username">Identifiant</label>
+      <div class="ctrl"><input type="text" id="username" placeholder="votre_pseudo"
+        autocomplete="username"></div>
     </div>
-  </details>
-  <div class="msg" id="msg-dyi"></div>
+    <div class="row">
+      <label for="browser">Navigateur</label>
+      <div class="ctrl">
+        <select id="browser"></select>
+        <button class="go" id="btn-connect">Connecter</button>
+      </div>
+    </div>
+    <p class="note">Chrome, Safari, Edge et Brave demandent le paquet
+       <code>browser-cookie3</code>.</p>
+
+    <details>
+      <summary>Une autre méthode, si la lecture automatique échoue</summary>
+      <div class="sub">
+        <label for="cookie" class="note" style="margin:0 0 .4rem">Coller le cookie
+          <code>sessionid</code>, ou l'en-tête Cookie entier</label>
+        <textarea id="cookie" placeholder="sessionid=12345%3AAbCdEf%3A7…"></textarea>
+        <p class="note">Outils de développement → Application → Cookies → instagram.com →
+           <code>sessionid</code>. Fonctionne partout, même sans navigateur local.</p>
+        <div class="actions"><button id="btn-cookie">Utiliser ce cookie</button></div>
+      </div>
+      <div class="sub">
+        <div class="row">
+          <label for="pw-user">Identifiant</label>
+          <div class="ctrl"><input type="text" id="pw-user" autocomplete="username"></div>
+        </div>
+        <div class="row">
+          <label for="pw-pass">Mot de passe</label>
+          <div class="ctrl">
+            <input type="password" id="pw-pass" autocomplete="current-password">
+            <button id="btn-password">Se connecter</button>
+          </div>
+        </div>
+        <p class="note">Transmis à Instagram, jamais écrit sur le disque. La double
+           authentification passe par le cookie ci-dessus.</p>
+      </div>
+      <div class="actions"><button id="btn-forget">Oublier la session</button></div>
+    </details>
+    <div class="msg" id="msg-session"></div>
+  </div>
 </section>
 
-<!-- 4 ------------------------------------------------------------------ -->
+<!-- 2 ---------------------------------------------------------------- -->
 <section class="step">
-  <h2><span class="num">4</span> Archivage</h2>
-  <p class="hint">Reprend toujours où il s'est arrêté. Vous pouvez fermer cette page : la tâche
-     continue tant que le programme tourne dans le terminal.</p>
-  <ul class="problems" id="problems"></ul>
-
-  <div class="row">
-    <button class="primary" id="btn-start">Lancer l'archivage</button>
-    <button id="btn-dry">Simuler (ne télécharge rien)</button>
-    <button class="danger" id="btn-stop" disabled>Arrêter</button>
+  <header><span class="idx">2</span><h2>Destination et rythme</h2>
+    <span class="state" id="st-2"></span></header>
+  <p class="lead">Les pauses entre deux contenus sont longues à dessein : c'est ce qui
+     évite qu'Instagram limite le compte. Comptez une heure pour 500 contenus.</p>
+  <div class="body">
+    <div class="row">
+      <label for="archive_dir">Dossier</label>
+      <div class="ctrl"><input type="text" id="archive_dir" placeholder="~/InstagramArchive"></div>
+    </div>
+    <div class="row">
+      <span class="key">Pause</span>
+      <div class="ctrl">
+        <input type="number" id="sleep_min" min="1" step="0.5" aria-label="pause minimale">
+        <span class="note" style="margin:0">à</span>
+        <input type="number" id="sleep_max" min="1" step="0.5" aria-label="pause maximale">
+        <span class="note" style="margin:0">secondes</span>
+      </div>
+    </div>
+    <div class="row">
+      <label for="limit_per_run">Plafond</label>
+      <div class="ctrl"><input type="number" id="limit_per_run" min="0" step="10">
+        <span class="note" style="margin:0">contenus par passe — 0 pour tout</span></div>
+    </div>
+    <div class="row">
+      <label for="stop_after_known">Arrêt</label>
+      <div class="ctrl"><input type="number" id="stop_after_known" min="0" step="5">
+        <span class="note" style="margin:0">après N déjà connus — 20 pour une mise à jour</span></div>
+    </div>
+    <div class="row">
+      <span class="key">Récupérer</span>
+      <div class="checks">
+        <label class="check"><input type="checkbox" id="download_videos"> vidéos</label>
+        <label class="check"><input type="checkbox" id="download_thumbnails"> vignettes</label>
+        <label class="check"><input type="checkbox" id="download_comments"> commentaires</label>
+      </div>
+    </div>
+    <div class="actions"><button class="go" id="btn-save">Enregistrer</button></div>
+    <div class="msg" id="msg-config"></div>
   </div>
-
-  <div class="bar" id="bar"><i id="bar-fill"></i></div>
-  <div class="stats">
-    <div class="stat"><b id="p-done">0</b><span>archivés</span></div>
-    <div class="stat"><b id="p-skipped">0</b><span>déjà connus</span></div>
-    <div class="stat"><b id="p-failed">0</b><span>en échec</span></div>
-    <div class="stat"><b id="p-scanned">0</b><span>parcourus</span></div>
-  </div>
-  <div class="current" id="current"></div>
-  <div class="log" id="log"></div>
-  <div class="msg" id="msg-fetch"></div>
 </section>
 
-<!-- 5 ------------------------------------------------------------------ -->
+<!-- 3 ---------------------------------------------------------------- -->
 <section class="step">
-  <h2><span class="num">5</span> Votre archive</h2>
-  <p class="hint">Le catalogue se reconstruit à partir des fiches déjà enregistrées : aucun
-     téléchargement n'est refait.</p>
+  <header><span class="idx">3</span><h2>Dates et collections</h2>
+    <span class="state" id="st-3"></span></header>
+  <p class="lead">Instagram n'expose pas la date à laquelle vous avez enregistré un contenu,
+     ni vos collections. Son export officiel, si. Demandez-le sur
+     <a href="https://accountscenter.instagram.com/info_and_permissions/dyi/" target="_blank"
+        rel="noopener">accountscenter.instagram.com</a> — format JSON, en cochant
+     « Éléments enregistrés ». Il met jusqu'à 48 h ; l'archivage n'a pas à l'attendre.</p>
+  <div class="body">
+    <div class="row">
+      <label for="export-file">Fichier reçu</label>
+      <div class="ctrl">
+        <input type="file" id="export-file" accept=".zip" class="pick">
+        <label class="asbtn" for="export-file">Choisir…</label>
+        <span class="picked" id="picked">aucun fichier</span>
+        <button id="btn-upload">Lire</button>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="btn-auto">Chercher dans les téléchargements</button>
+    </div>
+    <p class="note">Un export volumineux arrive découpé en plusieurs archives : elles sont
+       toutes lues. Seules celles dont le nom évoque Instagram sont ouvertes.</p>
+    <div class="chips" id="colls"></div>
 
-  <div class="stats">
-    <div class="stat"><b id="s-archived">0</b><span>contenus</span></div>
-    <div class="stat"><b id="s-size">0</b><span>sur le disque</span></div>
-    <div class="stat"><b id="s-dates">0</b><span>dates connues</span></div>
-    <div class="stat"><b id="s-gone">0</b><span>indisponibles</span></div>
+    <details>
+      <summary>Indiquer un chemin</summary>
+      <div class="sub">
+        <div class="row">
+          <label for="export-path">Chemin</label>
+          <div class="ctrl"><input type="text" id="export-path"
+            placeholder="~/Downloads/instagram-export.zip">
+            <button id="btn-path">Lire</button></div>
+        </div>
+      </div>
+    </details>
+    <div class="msg" id="msg-dyi"></div>
   </div>
-  <div class="row">
-    <button class="primary" id="btn-html">Ouvrir le catalogue</button>
-    <button id="btn-folder">Ouvrir le dossier</button>
-    <button id="btn-csv">Ouvrir le CSV</button>
-    <button id="btn-build">Reconstruire</button>
-  </div>
-  <p class="note" id="archive-path"></p>
-  <div class="msg" id="msg-catalog"></div>
 </section>
 
-</div>
+<!-- 4 ---------------------------------------------------------------- -->
+<section class="step">
+  <header><span class="idx">4</span><h2>Archivage</h2>
+    <span class="state" id="st-4"></span></header>
+  <p class="lead">Reprend toujours où il s'est arrêté. Vous pouvez fermer cette page :
+     la tâche continue tant que le programme tourne dans le terminal.</p>
+  <div class="body">
+    <ul class="problems" id="problems"></ul>
+    <div class="actions">
+      <button class="go" id="btn-start">Lancer l'archivage</button>
+      <button id="btn-dry">Simuler</button>
+      <button id="btn-stop" disabled>Arrêter</button>
+    </div>
+    <div class="tally">
+      <div><b id="p-done">0</b>archivés</div>
+      <div><b id="p-skipped">0</b>déjà connus</div>
+      <div><b id="p-failed">0</b>en échec</div>
+      <div><b id="p-scanned">0</b>parcourus</div>
+    </div>
+    <div class="now" id="current"></div>
+    <div class="log" id="log"></div>
+    <div class="msg" id="msg-fetch"></div>
+  </div>
+</section>
+
+<!-- 5 ---------------------------------------------------------------- -->
+<section class="step">
+  <header><span class="idx">5</span><h2>Votre archive</h2></header>
+  <p class="lead">Le catalogue se reconstruit à partir des fiches déjà enregistrées :
+     aucun téléchargement n'est refait.</p>
+  <div class="body">
+    <div class="tally">
+      <div><b id="s-archived">0</b>contenus</div>
+      <div><b id="s-size">0</b>sur le disque</div>
+      <div><b id="s-dates">0</b>dates connues</div>
+      <div><b id="s-gone">0</b>indisponibles</div>
+    </div>
+    <div class="actions">
+      <button class="go" id="btn-html">Ouvrir le catalogue</button>
+      <button id="btn-folder">Ouvrir le dossier</button>
+      <button id="btn-csv">Ouvrir le CSV</button>
+      <button id="btn-build">Reconstruire</button>
+    </div>
+    <p class="note" id="archive-path"></p>
+    <div class="msg" id="msg-catalog"></div>
+  </div>
+</section>
+
+</main>
 
 <script>
 const TOKEN = "__TOKEN__";
@@ -275,7 +352,7 @@ const CONFIG_FIELDS = ["username","browser","archive_dir","sleep_min","sleep_max
   "download_comments"];
 const CHECKBOXES = ["download_videos","download_thumbnails","download_comments"];
 
-let touched = new Set();   // champs modifies par l'utilisateur : ne pas les ecraser
+let touched = new Set();
 let running = false;
 
 function say(target, text, kind) {
@@ -284,11 +361,15 @@ function say(target, text, kind) {
   box.className = "msg" + (kind ? " " + kind : "");
 }
 
-async function api(path, body, options) {
-  const init = {
-    method: body === undefined ? "GET" : "POST",
-    headers: { "X-IG-Token": TOKEN },
-  };
+function mark(id, text, kind) {
+  const el = $(id);
+  el.textContent = text || "";
+  el.className = "state" + (kind ? " " + kind : "");
+}
+
+async function api(path, body) {
+  const init = { method: body === undefined ? "GET" : "POST",
+                 headers: { "X-IG-Token": TOKEN } };
   if (body !== undefined && !(body instanceof Blob)) {
     init.headers["Content-Type"] = "application/json";
     init.body = JSON.stringify(body);
@@ -299,7 +380,7 @@ async function api(path, body, options) {
   const response = await fetch(path, init);
   let payload;
   try { payload = await response.json(); }
-  catch (e) { throw new Error("Reponse illisible du serveur (HTTP " + response.status + ")"); }
+  catch (e) { throw new Error("Réponse illisible du serveur (HTTP " + response.status + ")"); }
   if (!response.ok || payload.ok === false) {
     throw new Error(payload.error || ("HTTP " + response.status));
   }
@@ -317,11 +398,29 @@ function render(state) {
   $("pill-version").textContent = "v" + state.version;
   $("pill-platform").textContent = state.platform;
 
-  const s = state.session;
-  const pill = $("pill-session");
-  if (s.valid) { pill.textContent = "connecté : " + s.account; pill.className = "pill ok"; }
-  else if (s.exists) { pill.textContent = "session expirée"; pill.className = "pill bad"; }
-  else { pill.textContent = "aucune session"; pill.className = "pill bad"; }
+  const s = state.session, sum = state.summary, job = state.job, pr = job.progress;
+  running = job.running;
+
+  // en-tete : l'etat de l'archive en trois lignes
+  const account = $("led-account");
+  account.textContent = s.valid ? s.account : (s.exists ? "session expirée" : "aucune session");
+  account.className = s.valid ? "" : "off";
+  $("led-path").textContent = sum.archive_dir;
+  $("led-count").textContent = sum.archived
+    ? sum.archived + " contenus, " + bytes(sum.bytes)
+    : "rien encore";
+
+  // etat de chaque etape
+  // « a faire » n'est pas une erreur : le rouge est reserve a ce qui bloque.
+  mark("st-1", s.valid ? "connecté" : (s.exists ? "session expirée" : "à faire"),
+       s.valid ? "on" : (s.exists ? "off" : ""));
+  const settingsIssues = (state.problems_detail || []).filter((p) => p.step === 2);
+  mark("st-2", settingsIssues.length ? "à corriger" : "prêt",
+       settingsIssues.length ? "off" : "");
+  mark("st-3", sum.known_dates ? sum.known_dates + " dates connues" : "en attente de l'export",
+       sum.known_dates ? "on" : "");
+  mark("st-4", running ? "en cours" : (sum.archived ? "à jour" : "à faire"),
+       running ? "busy" : (sum.archived ? "on" : ""));
 
   const select = $("browser");
   if (select.options.length !== state.browsers.length) {
@@ -339,15 +438,11 @@ function render(state) {
   $("problems").innerHTML = (state.problems || [])
     .map((p) => "<li>" + p.replace(/</g, "&lt;") + "</li>").join("");
 
-  const job = state.job, pr = job.progress;
-  running = job.running;
   $("p-done").textContent = pr.done;
   $("p-skipped").textContent = pr.skipped;
   $("p-failed").textContent = pr.failed;
   $("p-scanned").textContent = pr.scanned;
   $("current").textContent = pr.current || pr.message || "";
-  $("bar").className = "bar" + (running ? " busy" : "");
-  $("bar-fill").style.width = running ? "35%" : "0";
 
   const log = $("log");
   const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
@@ -364,22 +459,19 @@ function render(state) {
   $("btn-dry").disabled = running;
   $("btn-stop").disabled = !running;
 
-  const sum = state.summary;
   $("s-archived").textContent = sum.archived;
   $("s-size").textContent = bytes(sum.bytes);
   $("s-dates").textContent = sum.known_dates;
   $("s-gone").textContent = sum.unavailable;
-  $("archive-path").textContent = sum.archive_dir +
-    (sum.exists ? "" : "  (pas encore créé)");
+  $("archive-path").textContent = sum.archive_dir + (sum.exists ? "" : " — pas encore créé");
 
-  var colls = sum.collections || {};
-  var names = Object.keys(colls);
+  const colls = sum.collections || {};
+  const names = Object.keys(colls);
   $("colls").innerHTML = names.length
-    ? names.map(function (n) {
-        return '<span class="coll">' + n.replace(/</g, "&lt;") + " · " + colls[n] + "</span>";
-      }).join("") +
-      (sum.uncategorised ? '<span class="coll muted">sans collection · ' +
-        sum.uncategorised + "</span>" : "")
+    ? names.map((n) => '<span class="chip">' + n.replace(/</g, "&lt;") +
+        "<i>" + colls[n] + "</i></span>").join("") +
+      (sum.uncategorised ? '<span class="chip none">sans collection<i>' +
+        sum.uncategorised + "</i></span>" : "")
     : "";
 }
 
@@ -400,8 +492,7 @@ function configFromForm() {
 
 function wire(id, handler) {
   $(id).addEventListener("click", async () => {
-    const button = $(id);
-    const label = button.textContent;
+    const button = $(id), label = button.textContent;
     button.disabled = true;
     button.textContent = "…";
     try { await handler(); }
@@ -414,6 +505,11 @@ for (const key of CONFIG_FIELDS) {
   if (el) el.addEventListener("input", () => touched.add(key));
 }
 
+$("export-file").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  $("picked").textContent = file ? file.name + " · " + bytes(file.size) : "aucun fichier";
+});
+
 wire("btn-save", async () => {
   try {
     await api("/api/config", configFromForm());
@@ -423,7 +519,7 @@ wire("btn-save", async () => {
 });
 
 wire("btn-connect", async () => {
-  say("msg-session", "Lecture des cookies puis vérification auprès d'Instagram…");
+  say("msg-session", "Lecture des cookies, puis vérification auprès d'Instagram…");
   try {
     await api("/api/config", configFromForm());
     touched.clear();

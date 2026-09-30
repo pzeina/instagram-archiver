@@ -55,3 +55,25 @@ class ConfigValidation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProblemsPointAtTheRightStep(unittest.TestCase):
+    """L'interface signale chaque probleme a l'endroit ou il se corrige."""
+
+    def test_a_missing_account_belongs_to_the_account_step(self) -> None:
+        detail = config_module.Config().problems_detail()
+        self.assertTrue(all(issue["step"] == 1 for issue in detail), detail)
+
+    def test_a_bad_pause_belongs_to_the_settings_step(self) -> None:
+        detail = config_module.Config(username="x", sleep_min=0.1).problems_detail()
+        pauses = [i for i in detail if "pause" in i["text"]]
+        self.assertTrue(pauses and all(i["step"] == 2 for i in pauses))
+
+    def test_settings_are_clean_when_only_the_account_is_missing(self) -> None:
+        """Rien dans les reglages n'est fautif parce qu'aucun compte n'est saisi."""
+        detail = config_module.Config().problems_detail()
+        self.assertEqual([i for i in detail if i["step"] == 2], [])
+
+    def test_the_plain_list_still_reads_the_same(self) -> None:
+        cfg = config_module.Config(username="x", sleep_min=9, sleep_max=2)
+        self.assertEqual(cfg.problems(), [i["text"] for i in cfg.problems_detail()])
