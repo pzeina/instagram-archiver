@@ -1,4 +1,4 @@
-"""Catalogue : tri, echappement, cablage des medias, robustesse du CSV."""
+"""The catalogue: ordering, escaping, media wiring, CSV robustness."""
 
 import csv
 import json
@@ -48,7 +48,7 @@ class CatalogOutputs(unittest.TestCase):
         with (self.archive / "catalog.csv").open(encoding="utf-8-sig") as handle:
             rows = list(csv.DictReader(handle))
         self.assertEqual(len(rows), 1)
-        # Le retour a la ligne est aplati pour garder une ligne par contenu.
+        # Newlines are flattened to keep one row per item.
         self.assertEqual(rows[0]["caption"], 'Un titre, avec "guillemets" et un retour')
 
     def test_csv_starts_with_a_bom_so_excel_reads_the_accents(self) -> None:
@@ -83,7 +83,7 @@ class CatalogOutputs(unittest.TestCase):
         self.assertIn(i18n.t("cat_empty", "en"), page)
 
     def test_saved_dates_are_applied_to_records_written_earlier(self) -> None:
-        """L'export arrive apres coup : les fiches deja ecrites doivent en profiter."""
+        """The export arrives later: records already written must benefit from it."""
         self.write(record("X"))
         patched = catalog.apply_saved_dates(self.meta, {
             "X": {"saved_at": "2026-03-01T10:00:00+00:00", "saved_timestamp": 1772359200,
@@ -101,7 +101,7 @@ class CatalogOutputs(unittest.TestCase):
         self.assertEqual(result["count"], 1)
 
     def test_unknown_fields_in_a_record_are_ignored(self) -> None:
-        """Une fiche ecrite par une version ulterieure reste lisible."""
+        """A record written by a later version stays readable."""
         item = Record.from_dict({"shortcode": "X", "champ_futur": 1})
         self.assertEqual(item.shortcode, "X")
 
@@ -111,7 +111,7 @@ if __name__ == "__main__":
 
 
 class CollectionFolders(unittest.TestCase):
-    """L'arborescence des collections, qui reproduit la bibliotheque de l'application."""
+    """The collection tree, mirroring the library as the app shows it."""
 
     def setUp(self) -> None:
         self.tmp = TemporaryDirectory()
@@ -138,7 +138,7 @@ class CollectionFolders(unittest.TestCase):
         self.assertTrue((self.archive / "collections/Cuisine/a").is_symlink())
 
     def test_links_instead_of_copying(self) -> None:
-        """Un reel range dans trois collections ne doit occuper la place qu'une fois."""
+        """A reel filed under three collections must take the space of one."""
         records = [{"shortcode": "A", "directory": self.media("a"),
                     "collections": ["Un", "Deux", "Trois"]}]
         catalog.build_collection_links(self.archive, records)
@@ -167,8 +167,8 @@ class CollectionFolders(unittest.TestCase):
         self.assertTrue((self.archive / "collections/Nouvelle/a").is_symlink())
 
     def test_the_cleanup_never_deletes_a_real_file(self) -> None:
-        """Le nettoyage ne retire que des liens. Un fichier depose la par
-        l'utilisateur, ou un media, doit survivre a toute reconstruction."""
+        """Cleanup removes links only. A file the user dropped there, or a
+        media file, must survive any rebuild."""
         intruder = self.archive / "collections/Cuisine"
         intruder.mkdir(parents=True)
         (intruder / "mes-notes.txt").write_text("a garder", encoding="utf-8")
@@ -189,7 +189,7 @@ class CollectionFolders(unittest.TestCase):
 
 
 class SavedDateDisplay(unittest.TestCase):
-    """Ce que la page affiche selon que la date d'enregistrement est connue ou non."""
+    """What the page shows depending on whether the save date is known."""
 
     def setUp(self) -> None:
         self.tmp = TemporaryDirectory()
@@ -207,8 +207,8 @@ class SavedDateDisplay(unittest.TestCase):
         return (self.archive / "index.html").read_text(encoding="utf-8")
 
     def test_shows_the_exact_date_once_it_is_known(self) -> None:
-        """On verifie la promesse -- la date exacte apparait, l'ordre disparait --
-        et non la facon dont elle est balisee, qui peut changer."""
+        """The promise is checked -- the exact date appears, the rank goes --
+        not the markup around it, which is free to change."""
         page = self.page(record("X", saved_at="2026-09-25T14:30:00+00:00",
                                 saved_timestamp=1790000000))
         self.assertIn("2026-09-25", page)
@@ -216,7 +216,7 @@ class SavedDateDisplay(unittest.TestCase):
         self.assertNotIn("in the list", page)
 
     def test_explains_itself_when_the_date_is_missing(self) -> None:
-        """« rang 3 » n'apprend rien : la page doit dire d'ou vient la date."""
+        """"rank 3" teaches nothing: the page must say where the date comes from."""
         page = self.page(record("X", saved_rank=2))
         self.assertIn(i18n.t("cat_rank_value", "en", position="3rd"), page)
         self.assertIn("official export", page)
@@ -237,8 +237,8 @@ class SavedDateDisplay(unittest.TestCase):
 
 
 class ThePageFollowsTheChosenLanguage(unittest.TestCase):
-    """Le catalogue est un fichier autonome : la langue doit y etre figee au
-    moment de sa construction, pas devinee par le navigateur qui l'ouvre."""
+    """The catalogue is a standalone file: its language must be fixed when it is
+    built, not guessed by whichever browser opens it."""
 
     def setUp(self) -> None:
         self.tmp = TemporaryDirectory()
@@ -271,8 +271,8 @@ class ThePageFollowsTheChosenLanguage(unittest.TestCase):
 
 
 class NoLanguageLeaksIntoThePage(unittest.TestCase):
-    """Une chaine oubliee lors de la traduction ne se voit pas a la relecture :
-    la page reste correcte, un seul mot change de langue. Ce test la trouve."""
+    """A string missed during translation is invisible on review: the page stays
+    correct and a single word changes language. This test finds it."""
 
     def setUp(self) -> None:
         self.tmp = TemporaryDirectory()
@@ -295,15 +295,15 @@ class NoLanguageLeaksIntoThePage(unittest.TestCase):
 
     @staticmethod
     def visible(page: str) -> str:
-        """Le balisage sans son CSS ni son JavaScript.
+        """The markup without its CSS or its JavaScript.
 
-        Chercher un mot court dans tout le document donne des faux positifs :
-        « all » se trouve dans « querySelectorAll ». Seul le texte rendu compte.
+        Searching a short word across the whole document gives false positives:
+        "all" occurs inside "querySelectorAll". Only rendered text counts.
         """
         return re.sub(r"<(style|script)\b.*?</\1>", "", page, flags=re.S | re.I)
 
     def _leaks(self, rendered: str, other: str) -> list[str]:
-        """Chaines propres a l'autre langue trouvees dans le texte rendu."""
+        """Strings belonging to the other language found in the rendered text."""
         body = self.visible(self.page(rendered))
         found = []
         for key, entry in i18n.STRINGS.items():
@@ -323,8 +323,8 @@ class NoLanguageLeaksIntoThePage(unittest.TestCase):
         self.assertEqual(self._leaks("fr", "en"), [])
 
     def test_no_stray_html_entity_from_the_french_original(self) -> None:
-        """« publi&eacute; » etait reste code en dur : aucune entite accentuee
-        ne doit subsister dans la page anglaise."""
+        """"publi&eacute;" had stayed hardcoded: no accented entity should
+        survive in the English page."""
         page = self.visible(self.page("en"))
         for entity in ("&eacute;", "&egrave;", "&agrave;", "&ccedil;", "&icirc;"):
             self.assertNotIn(entity, page, entity)

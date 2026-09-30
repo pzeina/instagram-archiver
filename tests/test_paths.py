@@ -1,8 +1,8 @@
-"""Portabilite : la resolution des chemins doit suivre le systeme.
+"""Portability: path resolution must follow the operating system.
 
-Les tests forcent la plateforme, de sorte que le comportement Linux est verifie
-depuis macOS et reciproquement. Ils ne remplacent pas un essai reel sur chaque
-systeme, mais ils figent la logique de choix.
+These tests force the platform, so Linux behaviour is checked from macOS and
+the other way round. They do not replace a real run on each system, but they
+pin down the choices being made.
 """
 
 import os
@@ -25,8 +25,8 @@ class ConfigLocation(unittest.TestCase):
             self.assertEqual(paths.config_dir(), Path.home() / ".config/igarchive")
 
     def test_sessions_live_beside_the_configuration_not_in_the_archive(self) -> None:
-        """Le jeton vaut un mot de passe : il ne doit pas suivre l'archive si
-        elle est copiee sur un disque externe ou dans un nuage."""
+        """The token is worth a password: it must not follow the archive onto
+        an external disk or into a cloud folder."""
         self.assertEqual(paths.sessions_dir().parent, paths.config_dir())
         self.assertNotIn(str(paths.default_archive_dir()), str(paths.sessions_dir()))
 
@@ -43,8 +43,8 @@ class FirefoxProfiles(unittest.TestCase):
         self.assertIn("Library/Application Support", str(roots[0]))
 
     def test_covers_plain_snap_and_flatpak_installs_on_linux(self) -> None:
-        """Sous Linux, Firefox est installe de trois facons incompatibles ;
-        chacune range ses profils ailleurs."""
+        """On Linux, Firefox is packaged three incompatible ways, and each keeps
+        its profiles somewhere else."""
         with TemporaryDirectory() as tmp:
             home = Path(tmp)
             for relative in (".mozilla/firefox",
@@ -79,8 +79,8 @@ class Opening(unittest.TestCase):
         self.assertEqual(popen.call_args[0][0][0], "/usr/bin/xdg-open")
 
     def test_reports_failure_rather_than_raising_when_no_opener_exists(self) -> None:
-        """Un serveur Linux sans environnement graphique n'a pas xdg-open :
-        l'outil doit afficher l'adresse, pas planter."""
+        """A headless Linux server has no xdg-open: the program must print the
+        address rather than crash."""
         with mock.patch.object(paths.sys, "platform", "linux"), \
              mock.patch.object(paths.shutil, "which", lambda name: None):
             self.assertFalse(paths.open_in_browser("http://x"))
@@ -93,7 +93,7 @@ class HumanSizes(unittest.TestCase):
             self.assertEqual(paths.human_bytes(value), expected)
 
     def test_french_uses_octets(self) -> None:
-        """« byte » se dit « octet » : l'abreviation doit suivre la langue."""
+        """A byte is an "octet" in French: the unit must follow the language."""
         self.assertEqual(paths.human_bytes(15_600_000, "fr"), "14.9 Mo")
         self.assertEqual(paths.human_bytes(0, "fr"), "0 o")
 

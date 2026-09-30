@@ -1,8 +1,8 @@
 #!/bin/sh
-# Installation d'igarchive sur macOS et Linux.
+# Installing igarchive on macOS and Linux.
 #
-# Cree un environnement Python isole dans .venv et y installe le programme.
-# Ne modifie rien d'autre sur le systeme sans le demander.
+# Creates an isolated Python environment in .venv and installs the program into
+# it. Changes nothing else on the system without asking.
 
 set -eu
 
@@ -14,7 +14,7 @@ MIN_MINOR=9
 say()  { printf '%s\n' "$*"; }
 fail() { printf '\nErreur : %s\n' "$*" >&2; exit 1; }
 
-# -- 1. trouver un Python assez recent --------------------------------------
+# -- 1. find a recent enough Python -----------------------------------------
 
 PYTHON=""
 for candidate in python3.13 python3.12 python3.11 python3.10 python3.9 python3; do
@@ -36,7 +36,7 @@ if [ -z "$PYTHON" ]; then
 fi
 say "Python          : $PYTHON ($("$PYTHON" -c 'import platform;print(platform.python_version())'))"
 
-# -- 2. environnement isole -------------------------------------------------
+# -- 2. isolated environment ------------------------------------------------
 
 if [ ! -d "$VENV" ]; then
     "$PYTHON" -m venv "$VENV" 2>/dev/null || fail \
@@ -50,7 +50,7 @@ fi
 
 "$VENV/bin/python" -m pip install --quiet --upgrade pip >/dev/null 2>&1 || true
 
-# -- 3. installation --------------------------------------------------------
+# -- 3. install -------------------------------------------------------------
 
 say "Installation    : en cours..."
 EXTRAS=""
@@ -63,7 +63,7 @@ fi
 VERSION=$("$VENV/bin/igarchive" --version 2>/dev/null || echo "?")
 say "Installe        : $VERSION"
 
-# -- 4. rendre la commande accessible --------------------------------------
+# -- 4. make the command reachable ------------------------------------------
 
 BIN="$VENV/bin/igarchive"
 say ""

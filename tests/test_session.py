@@ -1,4 +1,4 @@
-"""Lecture des cookies : les formats que l'utilisateur peut coller."""
+"""Reading cookies: the shapes a user may paste in."""
 
 import unittest
 from pathlib import Path
@@ -40,9 +40,9 @@ if __name__ == "__main__":
 
 
 class StatusIsCachedAndHonest(unittest.TestCase):
-    """Verifier une session coute une requete reseau ; la page se rafraichit
-    toutes les secondes et demie. Sans cache, afficher un temoin envoyait des
-    milliers de requetes par heure -- le rythme meme qui fait limiter un compte."""
+    """Checking a session costs a network request, and the page refreshes every
+    second and a half. Without a cache, showing an indicator sent thousands of
+    requests an hour -- the very rate that gets an account limited."""
 
     def setUp(self) -> None:
         session.invalidate()
@@ -84,9 +84,9 @@ class StatusIsCachedAndHonest(unittest.TestCase):
         self.assertEqual(len(self.calls), 2)
 
     def test_an_unreachable_check_is_not_an_expired_session(self) -> None:
-        """Le reseau qui manque, ou Instagram qui limite, ne prouve rien sur la
-        validite de la session. Les confondre affichait « session expiree » a un
-        utilisateur parfaitement connecte."""
+        """A missing network, or Instagram limiting the account, proves nothing
+        about the session. Confusing the two showed "session expired" to a
+        perfectly connected user."""
         unreachable = {"exists": True, "valid": False, "account": None,
                        "reachable": False, "error": "timeout"}
         with self.probe(unreachable):
@@ -95,8 +95,8 @@ class StatusIsCachedAndHonest(unittest.TestCase):
         self.assertTrue(result["exists"])
 
     def test_a_session_renewed_in_the_browser_is_picked_up(self) -> None:
-        """Se reconnecter sur instagram.com doit suffire : l'utilisateur n'a pas
-        a revenir appuyer sur un bouton."""
+        """Signing in again at instagram.com must be enough: the user should not
+        have to come back and press a button."""
         expired = {"exists": True, "valid": False, "account": None,
                    "reachable": True, "error": None}
         renewed = {"exists": True, "valid": True, "account": "moi",
@@ -120,9 +120,9 @@ class StatusIsCachedAndHonest(unittest.TestCase):
 
 
 class ThrottlingIsNotLogout(unittest.TestCase):
-    """« test_login » rend None aussi bien pour une session deconnectee que pour
-    une question qu'il n'a pas pu poser. Il ne journalise une erreur que dans le
-    second cas : c'est la seule chose qui les separe."""
+    """test_login returns None both for a signed-out session and for a question
+    it could not ask. It logs an error only in the second case, and that is the
+    sole thing separating them."""
 
     class FakeContext:
         def __init__(self, errors):
@@ -146,8 +146,8 @@ class ThrottlingIsNotLogout(unittest.TestCase):
             return session._probe("moi")
 
     def test_a_throttled_account_is_not_reported_as_logged_out(self) -> None:
-        """Instagram repond « feedback_required » a un compte qu'il limite. La
-        session reste valable -- les telechargements continuent de passer."""
+        """Instagram answers "feedback_required" to an account it is limiting.
+        The session stays valid -- downloads keep going through."""
         import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -183,13 +183,13 @@ class ThrottlingIsHandledGently(unittest.TestCase):
         session.invalidate()
 
     def test_a_throttled_account_is_asked_far_less_often(self) -> None:
-        """Interroger un compte qu'Instagram limite ne peut qu'entretenir la
-        limitation : l'intervalle doit etre nettement plus long."""
+        """Polling an account Instagram is limiting can only sustain the limit:
+        the interval must be markedly longer."""
         self.assertGreater(session.UNREACHABLE_TTL, session.STATUS_TTL * 4)
 
     def test_instaloader_is_prevented_from_writing_to_the_terminal(self) -> None:
-        """Sa methode error() imprime sans tenir compte de « quiet » : un compte
-        limite remplissait le terminal du meme message, des milliers de fois."""
+        """Its error() method prints regardless of "quiet": a limited account
+        filled the terminal with the same message, thousands of times."""
         class FakeContext:
             def __init__(self):
                 self.error_log = []

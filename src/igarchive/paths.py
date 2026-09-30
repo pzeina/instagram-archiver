@@ -1,8 +1,8 @@
-"""Emplacements de fichiers, resolus de la meme facon sur macOS et Linux.
+"""File locations, resolved the same way on macOS and Linux.
 
-On suit la convention XDG sur les deux systemes plutot que
-"~/Library/Application Support" sur macOS : un seul chemin a documenter,
-un seul a sauvegarder, et le meme dans la documentation quel que soit l'OS.
+XDG conventions are used on both systems rather than
+"~/Library/Application Support" on macOS: one path to document, one to back up,
+and the same one in the documentation whatever the operating system.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ APP = "igarchive"
 
 
 def config_dir() -> Path:
-    """Repertoire de configuration (respecte XDG_CONFIG_HOME s'il est defini)."""
+    """Configuration directory (honours XDG_CONFIG_HOME when it is set)."""
     base = os.environ.get("XDG_CONFIG_HOME")
     root = Path(base).expanduser() if base else Path.home() / ".config"
     return root / APP
@@ -28,7 +28,7 @@ def config_file() -> Path:
 
 
 def sessions_dir() -> Path:
-    """Jetons de session : equivalents a un mot de passe, donc hors de l'archive."""
+    """Session tokens: worth a password, so they live outside the archive."""
     return config_dir() / "sessions"
 
 
@@ -45,7 +45,7 @@ def is_linux() -> bool:
 
 
 def firefox_profile_roots() -> list[Path]:
-    """Tous les emplacements ou Firefox range ses profils, selon l'OS et le paquet."""
+    """Every place Firefox keeps its profiles, by operating system and packaging."""
     home = Path.home()
     if is_macos():
         candidates = [home / "Library/Application Support/Firefox/Profiles"]
@@ -59,7 +59,7 @@ def firefox_profile_roots() -> list[Path]:
 
 
 def open_in_browser(target: str) -> bool:
-    """Ouvre une URL ou un fichier dans l'application par defaut. Vrai si lance."""
+    """Open a URL or file in the default application. True if it was launched."""
     if is_macos():
         opener = ["open"]
     else:
@@ -76,7 +76,7 @@ def open_in_browser(target: str) -> bool:
 
 
 def human_bytes(size: float, language: str = "en") -> str:
-    """Taille lisible. L'abreviation suit la langue : « octet » ou « byte »."""
+    """Human-readable size. The unit follows the language: "octet" or "byte"."""
     units = ("o", "Ko", "Mo", "Go", "To") if language.startswith("fr") \
         else ("B", "KB", "MB", "GB", "TB")
     for unit in units:

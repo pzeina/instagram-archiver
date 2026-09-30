@@ -1,8 +1,7 @@
-"""Execution d'un archivage en tache de fond, pour que l'interface reste vivante.
+"""Running a backup in the background, so the interface stays responsive.
 
-Une seule tache a la fois : lancer deux parcours simultanes de la meme
-bibliotheque doublerait le rythme des requetes, ce qui est exactement ce qui
-fait limiter un compte.
+One task at a time: two simultaneous passes over the same library would double
+the request rate, which is exactly what gets an account rate limited.
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ MAX_LOG_LINES = 400
 
 
 class JobRunner:
-    """Porte l'etat d'une tache de fond et le rend lisible par l'interface."""
+    """Holds the state of a background task and exposes it to the interface."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -30,7 +29,7 @@ class JobRunner:
         self._log: deque[str] = deque(maxlen=MAX_LOG_LINES)
         self._started_at: datetime | None = None
 
-    # -- etat ------------------------------------------------------------
+    # -- state -----------------------------------------------------------
 
     @property
     def running(self) -> bool:
@@ -53,11 +52,11 @@ class JobRunner:
         with self._lock:
             self._log.append(f"{datetime.now():%H:%M:%S}  {line}")
 
-    # -- pilotage --------------------------------------------------------
+    # -- control ---------------------------------------------------------
 
     def start(self, work: Callable[[threading.Event, Callable[[Progress], None]], Any],
               *, label: str = "Archivage") -> bool:
-        """Lance `work` en tache de fond. Faux si une tache tourne deja."""
+        """Start `work` in the background. False if a task is already running."""
         with self._lock:
             if self._thread is not None and self._thread.is_alive():
                 return False
@@ -94,7 +93,7 @@ class JobRunner:
         return True
 
     def cancel(self) -> bool:
-        """Demande l'arret. Le travail en cours se termine proprement."""
+        """Ask the task to stop. Work in progress finishes cleanly."""
         with self._lock:
             alive = self._thread is not None and self._thread.is_alive()
         if alive:

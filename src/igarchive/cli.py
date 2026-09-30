@@ -1,8 +1,8 @@
-"""Ligne de commande.
+"""The command line.
 
-Elle appelle exactement les memes modules que l'interface web : tout ce qui est
-faisable par l'interface l'est depuis un terminal, donc depuis une tache
-planifiee ou une machine sans affichage.
+It calls exactly the same modules as the web interface: anything the interface
+can do is available from a terminal, and therefore from a scheduled job or a
+machine with no display.
 """
 
 from __future__ import annotations
@@ -11,12 +11,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from igarchive import __version__, catalog, config as config_module, dyi, fetch, paths, session, webui
+from igarchive import __version__, catalog, config as config_module, dyi, fetch, i18n, paths, session, webui
 from igarchive.fetch import Progress
 
 
 def _config(args: argparse.Namespace) -> config_module.Config:
-    """Configuration enregistree, surchargee par les options de la commande."""
+    """The stored settings, overridden by the command's own options."""
     cfg = config_module.load()
     for name in ("archive_dir", "sleep_min", "sleep_max", "limit_per_run",
                  "stop_after_known", "username"):
@@ -27,6 +27,7 @@ def _config(args: argparse.Namespace) -> config_module.Config:
         cfg.download_videos = False
     if getattr(args, "comments", False):
         cfg.download_comments = True
+    i18n.set_language(cfg.language)
     return cfg
 
 
@@ -92,7 +93,7 @@ def cmd_dyi(args: argparse.Namespace) -> int:
     if noms:
         print(f"{len(noms)} collections : {', '.join(noms)}")
 
-    # Les fiches deja ecrites profitent immediatement des dates et des collections.
+    # Records already written gain their dates and collections immediately.
     built = catalog.build(cfg.archive, cfg.metadata_dir, merged, cfg.language)
     print(f"Catalogue mis a jour : {built['count']} contenus, "
           f"{built['dated']} avec date d'enregistrement exacte.")
@@ -291,7 +292,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if not getattr(args, "command", None):
-        # Sans sous-commande, l'interface graphique est le comportement attendu.
+        # With no subcommand, opening the interface is the expected behaviour.
         return cmd_ui(argparse.Namespace(port=None, no_open=False))
     try:
         return args.func(args)

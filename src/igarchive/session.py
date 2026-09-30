@@ -1,14 +1,14 @@
-"""Ouverture et conservation d'une session Instagram.
+"""Opening and keeping an Instagram session.
 
-Quatre voies, de la plus simple a la plus universelle :
+Four routes, from the simplest to the most universal:
 
-1. cookies de Firefox        -- lecture directe du profil, aucune dependance
-2. cookies d'un autre navigateur -- via browser_cookie3 (paquet optionnel)
-3. collage du cookie sessionid   -- fonctionne partout, y compris sans navigateur local
-4. identifiant / mot de passe    -- gere par instaloader, rien n'est conserve
+1. Firefox cookies        -- read straight from the profile, no dependency
+2. another browser's cookies -- through browser_cookie3 (optional package)
+3. pasting the sessionid cookie -- works anywhere, even with no local browser
+4. username and password  -- handled by instaloader, nothing is kept
 
-Aucun mot de passe n'est jamais ecrit sur le disque. Seul le jeton de session
-l'est, en droits 600, et il est traite comme un equivalent de mot de passe.
+No password is ever written to disk. Only the session token is, with mode 600,
+and it is treated as the equivalent of a password.
 """
 
 from __future__ import annotations
@@ -23,36 +23,34 @@ from pathlib import Path
 from instaloader import Instaloader
 from instaloader.exceptions import InstaloaderException
 
-from igarchive import paths
+from igarchive import i18n, paths
 
-# Navigateurs delegues a browser_cookie3 (dechiffrement Trousseau macOS /
-# portefeuille GNOME-KDE sous Linux).
+# Browsers delegated to browser_cookie3, which decrypts the macOS Keychain or
+# the GNOME/KDE wallet on Linux.
 DELEGATED_BROWSERS = ("chrome", "chromium", "brave", "edge", "opera", "safari")
 SUPPORTED_BROWSERS = ("firefox", *DELEGATED_BROWSERS)
 
 
 class SessionError(RuntimeError):
-    """Echec d'ouverture de session, avec un message destine a l'utilisateur."""
+    """Sign-in failure, carrying a message meant for the user."""
 
 
 # ---------------------------------------------------------------------------
-# lecture des cookies
+# reading cookies
 # ---------------------------------------------------------------------------
 
 def firefox_cookies() -> dict[str, str]:
-    """Cookies instagram.com du profil Firefox le plus recemment utilise."""
+    """instagram.com cookies from the most recently used Firefox profile."""
     roots = paths.firefox_profile_roots()
     if not roots:
         raise SessionError(
-            "Aucun profil Firefox trouve. Installe Firefox et connecte-toi a "
-            "instagram.com, ou choisis une autre methode."
-        )
+i18n.t("no_firefox_profile"))
     databases = [db for root in roots for db in root.glob("*/cookies.sqlite")]
     if not databases:
-        raise SessionError("Profil Firefox trouve, mais aucun fichier cookies.sqlite.")
+        raise SessionError(i18n.t("firefox_no_cookies"))
     database = max(databases, key=lambda p: p.stat().st_mtime)
 
-    # Firefox garde le fichier verrouille pendant qu'il tourne : on lit une copie.
+    # Firefox keeps the file locked while it runs, so a copy is read instead.
     with tempfile.TemporaryDirectory() as tmp:
         copy = Path(tmp) / "cookies.sqlite"
         shutil.copy2(database, copy)
@@ -67,22 +65,19 @@ def firefox_cookies() -> dict[str, str]:
 
 
 def delegated_cookies(browser: str) -> dict[str, str]:
-    """Cookies d'un navigateur dont la base est chiffree, via browser_cookie3."""
+    """Cookies of a browser whose store is encrypted, via browser_cookie3."""
     try:
         import browser_cookie3
     except ImportError as exc:
         raise SessionError(
-            f"Lire les cookies de {browser} demande le paquet browser_cookie3 :\n"
-            f"    pip install browser-cookie3\n"
-            f"Sinon, utilise Firefox ou colle ton cookie sessionid."
-        ) from exc
+i18n.t("needs_browser_cookie3", browser=browser)) from exc
     loader = getattr(browser_cookie3, browser, None)
     if loader is None:
-        raise SessionError(f"Navigateur non reconnu : {browser}")
+        raise SessionError(i18n.t("unknown_browser", browser=browser))
     try:
         jar = loader(domain_name="instagram.com")
-    except Exception as exc:  # browser_cookie3 leve des exceptions tres variees
-        raise SessionError(f"Lecture des cookies de {browser} impossible : {exc}") from exc
+    except Exception as exc:  # browser_cookie3 raises a wide variety of errors
+        raise SessionError(i18n.t("cookie_read_failed", browser=browser, error=exc)) from exc
     return {cookie.name: cookie.value for cookie in jar}
 
 
@@ -92,24 +87,22 @@ def browser_cookies(browser: str) -> dict[str, str]:
         return firefox_cookies()
     if browser in DELEGATED_BROWSERS:
         return delegated_cookies(browser)
-    raise SessionError(
-        f"Navigateur non pris en charge : {browser}. "
-        f"Choix possibles : {', '.join(SUPPORTED_BROWSERS)}."
-    )
+    raise SessionError(i18n.t("unsupported_browser", browser=browser,
+                              choices=", ".join(SUPPORTED_BROWSERS)))
 
 
 def parse_cookie_blob(blob: str) -> dict[str, str]:
-    """Accepte soit la valeur brute du sessionid, soit un en-tete Cookie entier.
+    """Accept either the bare sessionid value or a whole Cookie header.
 
-    Coller l'en-tete complet depuis les outils de developpement est le moyen le
-    plus fiable quand la lecture automatique echoue (Linux durci, navigateur
-    exotique, machine distante).
+    Pasting the full header from the developer tools is the most reliable route
+    when automatic reading fails: a hardened Linux, an unusual browser, a remote
+    machine.
     """
     blob = blob.strip().strip(";")
     if not blob:
-        raise SessionError("Aucun cookie fourni.")
+        raise SessionError(i18n.t("no_cookie_given"))
     if "=" not in blob:
-        return {"sessionid": blob}          # valeur seule du sessionid
+        return {"sessionid": blob}          # the sessionid value on its own
     cookies: dict[str, str] = {}
     for part in blob.split(";"):
         if "=" in part:
@@ -119,7 +112,7 @@ def parse_cookie_blob(blob: str) -> dict[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# ouverture, verification, conservation
+# opening, verifying, keeping
 # ---------------------------------------------------------------------------
 
 def _persist(loader: Instaloader, username: str) -> Path:
@@ -137,29 +130,25 @@ def _persist(loader: Instaloader, username: str) -> Path:
 
 
 def _verify(loader: Instaloader, expected: str) -> str:
-    """Interroge Instagram pour savoir quel compte la session ouvre reellement."""
+    """Ask Instagram which account the session actually opens."""
     try:
         actual = loader.test_login()
     except InstaloaderException as exc:
-        raise SessionError(f"Instagram a refuse la session : {exc}") from exc
+        raise SessionError(i18n.t("session_refused", error=exc)) from exc
     if not actual:
         raise SessionError(
-            "Session invalide : Instagram ne reconnait aucun compte connecte.\n"
-            "Connecte-toi a instagram.com dans ton navigateur, puis recommence."
-        )
+i18n.t("session_invalid"))
     if expected and actual.lower() != expected.lower():
-        # On fait confiance a Instagram plutot qu'a ce qui a ete saisi.
+        # Trust Instagram over whatever was typed in.
         return actual
     return actual
 
 
 def open_from_cookies(cookies: dict[str, str], username: str = "") -> tuple[str, Path]:
-    """Ouvre une session a partir de cookies deja obtenus. Rend (compte, fichier)."""
+    """Open a session from cookies already in hand. Returns (account, file)."""
     if "sessionid" not in cookies:
         raise SessionError(
-            "Aucun cookie « sessionid » pour instagram.com.\n"
-            "Connecte-toi a instagram.com dans ce navigateur, puis recommence."
-        )
+i18n.t("no_sessionid"))
     loader = Instaloader(quiet=True)
     loader.load_session(username or "unknown", cookies)
     actual = _verify(loader, username)
@@ -176,9 +165,9 @@ def open_from_blob(blob: str, username: str = "") -> tuple[str, Path]:
 
 
 def open_interactive(username: str, password: str | None = None) -> tuple[str, Path]:
-    """Connexion par identifiant. Sans mot de passe, instaloader le demande au terminal.
+    """Sign in with credentials. Without a password, instaloader asks at the terminal.
 
-    Le mot de passe n'est ni conserve ni journalise ; seul le jeton resultant l'est.
+    The password is neither kept nor logged; only the resulting token is.
     """
     loader = Instaloader(quiet=True)
     try:
@@ -187,17 +176,17 @@ def open_interactive(username: str, password: str | None = None) -> tuple[str, P
         else:
             loader.interactive_login(username)
     except InstaloaderException as exc:
-        raise SessionError(f"Connexion refusee : {exc}") from exc
+        raise SessionError(i18n.t("login_refused", error=exc)) from exc
     actual = _verify(loader, username)
     return actual, _persist(loader, actual)
 
 
 def open_auto(username: str = "") -> tuple[str, Path]:
-    """Ouvre une session sans rien demander : on essaie chaque navigateur.
+    """Open a session without asking anything: every browser is tried in turn.
 
-    Choisir son navigateur dans une liste n'apprend rien a personne. On essaie
-    Firefox d'abord, puis les autres s'ils sont lisibles, et on ne parle que du
-    resultat. Si tout echoue, le message rassemble ce que chacun a repondu.
+    Picking a browser from a list teaches nobody anything. Firefox is tried
+    first, then the others if they can be read, and only the outcome is
+    reported. If all fail, the message gathers what each one answered.
     """
     troubles: list[str] = []
     for browser in SUPPORTED_BROWSERS:
@@ -207,31 +196,27 @@ def open_auto(username: str = "") -> tuple[str, Path]:
             troubles.append(f"{browser} : {str(exc).splitlines()[0]}")
             continue
         if "sessionid" not in cookies:
-            troubles.append(f"{browser} : aucune session Instagram ouverte")
+            troubles.append(f"{browser}: no Instagram session open")
             continue
         try:
             return open_from_cookies(cookies, username)
         except SessionError as exc:
             troubles.append(f"{browser} : {str(exc).splitlines()[0]}")
 
-    raise SessionError(
-        "Aucune session Instagram trouvee dans vos navigateurs.\n"
-        "Connectez-vous sur instagram.com, puis reessayez.\n\n"
-        + "\n".join(troubles)
-    )
+    raise SessionError(i18n.t("no_browser_session") + "\n\n" + "\n".join(troubles))
 
 
 def _hush(loader: Instaloader) -> Instaloader:
-    """Empeche instaloader d'ecrire ses erreurs sur la sortie d'erreur.
+    """Stop instaloader from writing its errors to standard error.
 
-    Sa methode error() imprime sans tenir compte de « quiet », si bien qu'un
-    compte limite par Instagram remplissait le terminal du meme message. Les
-    messages restent collectes dans error_log, ou le code les lit pour
-    distinguer une session perimee d'une verification impossible.
+    Its error() method prints regardless of the "quiet" option, so an account
+    rate limited by Instagram filled the terminal with the same message. The
+    messages are still collected in error_log, where this module reads them to
+    tell an expired session from a check that could not be made.
     """
     context = loader.context
 
-    def collect(msg, repeat_at_end=True):  # noqa: ARG001 -- signature imposee
+    def collect(msg, repeat_at_end=True):  # noqa: ARG001 -- signature is imposed
         context.error_log.append(msg)
 
     context.error = collect
@@ -239,35 +224,35 @@ def _hush(loader: Instaloader) -> Instaloader:
 
 
 def load(username: str) -> Instaloader:
-    """Recharge une session deja ouverte. Leve SessionError si elle manque."""
+    """Reload a session already opened. Raises SessionError if it is missing."""
     target = paths.sessions_dir() / f"{username}.session"
     if not target.exists():
-        raise SessionError(f"Aucune session enregistree pour « {username} ».")
+        raise SessionError(i18n.t("no_saved_session", account=username))
     loader = _hush(Instaloader(quiet=True))
     try:
         loader.load_session_from_file(username, str(target))
     except (OSError, InstaloaderException) as exc:
-        raise SessionError(f"Session illisible ({exc}). Ouvre-la a nouveau.") from exc
+        raise SessionError(i18n.t("session_unreadable", error=exc)) from exc
     return loader
 
 
-# Verifier une session est une requete reseau. La page se rafraichit toutes les
-# secondes et demie : sans garde-fou, afficher un temoin coutait des milliers de
-# requetes par heure, ce qui est precisement le rythme qui fait limiter un compte.
+# Checking a session is a network request. Without a guard, showing a status
+# indicator cost thousands of requests an hour -- precisely the rate that gets an
+# account limited. The interface now only checks when the user asks it to.
 STATUS_TTL = 120.0
-# Quand Instagram refuse de repondre -- « feedback_required » -- insister ne peut
-# qu'entretenir la limitation. On espace beaucoup plus jusqu'a ce qu'elle passe.
+# When Instagram refuses to answer -- "feedback_required" -- pressing on can only
+# sustain the limit. Checks are spaced much further apart until it lifts.
 UNREACHABLE_TTL = 900.0
 _status_cache: "dict[str, tuple[float, dict]]" = {}
 _status_lock = threading.Lock()
 
 
 def _probe(username: str) -> dict:
-    """Etat reel d'une session, en distinguant « perimee » de « invisible ».
+    """The real state of a session, telling "expired" apart from "unknown".
 
-    Une requete qui echoue ne prouve pas qu'une session est perimee : le reseau
-    peut manquer, ou Instagram limiter le compte. Les confondre faisait afficher
-    « session expiree » a un utilisateur parfaitement connecte.
+    A failed request does not prove a session has expired: the network may be
+    down, or Instagram may be limiting the account. Confusing the two showed
+    "session expired" to a perfectly connected user.
     """
     target = paths.sessions_dir() / f"{username}.session"
     if not username or not target.exists():
@@ -279,12 +264,12 @@ def _probe(username: str) -> dict:
         return {"exists": True, "valid": False, "account": None,
                 "reachable": False, "error": str(exc)[:200]}
 
-    # test_login() rend None dans deux cas opposes : la session est reellement
-    # deconnectee, ou la question n'a pas pu etre posee (reseau coupe, ou
-    # « feedback_required », la reponse d'Instagram a un compte qu'il limite).
-    # Il ne journalise une erreur que dans le second cas : c'est ce qui les
-    # separe. Les confondre affichait « session expiree » a un utilisateur
-    # parfaitement connecte, dont les telechargements marchaient.
+    # test_login() returns None in two opposite cases: the session really is
+    # signed out, or the question could not be asked at all (no network, or
+    # "feedback_required", Instagram's answer to an account it is limiting).
+    # It only logs an error in the second case, and that is the sole difference
+    # between them. Confusing the two showed "session expired" to a perfectly
+    # connected user whose downloads were going through.
     log = loader.context.error_log
     before = len(log)
     try:
@@ -304,11 +289,11 @@ def _probe(username: str) -> dict:
 
 
 def status(username: str, *, force: bool = False, recover: bool = True) -> dict:
-    """Etat de la session, verifie au plus une fois par STATUS_TTL secondes.
+    """Session state, checked at most once every STATUS_TTL seconds.
 
-    Quand la session enregistree est reellement perimee, on regarde si le
-    navigateur en porte une nouvelle : se reconnecter sur instagram.com doit
-    suffire, sans avoir a revenir appuyer sur un bouton.
+    When the stored session really has expired, the browser is checked for a
+    newer one: signing in again at instagram.com should be enough, without
+    having to come back and press a button.
     """
     if not username:
         return {"exists": False, "valid": False, "account": None,
@@ -331,7 +316,7 @@ def status(username: str, *, force: bool = False, recover: bool = True) -> dict:
             result = _probe(account)
             result["recovered"] = account
         except SessionError:
-            pass   # rien de neuf dans le navigateur : la session reste perimee
+            pass   # nothing new in the browser: the session stays expired
 
     with _status_lock:
         _status_cache[username] = (time.monotonic(), result)
@@ -339,12 +324,12 @@ def status(username: str, *, force: bool = False, recover: bool = True) -> dict:
 
 
 def connect(username: str = "") -> dict:
-    """Verifie la session gardee, et a defaut en prend une dans le navigateur.
+    """Check the stored session, and failing that take one from the browser.
 
-    Appelee uniquement quand l'utilisateur appuie sur « Connecter le compte » :
-    l'interface ne verifie plus rien d'elle-meme. Deux requetes au maximum, a un
-    moment choisi, plutot qu'un controle de fond dont personne n'a demande le
-    resultat -- et qui finissait par faire limiter le compte.
+    Called only when the user presses "Connect the account": the interface no
+    longer checks anything on its own. Two requests at most, at a moment the
+    user chose, rather than a background poll nobody asked for -- which is what
+    ended up getting the account limited.
     """
     checked = _probe(username) if username else None
     if checked and checked["valid"]:
@@ -355,7 +340,7 @@ def connect(username: str = "") -> dict:
         account, _ = open_auto(username)
     except SessionError as exc:
         if checked and not checked["reachable"]:
-            # Instagram refuse de repondre : ne rien conclure sur la session.
+            # Instagram refuses to answer: conclude nothing about the session.
             return {**checked, "checked": True, "message":
                     "Instagram n'a pas repondu — le compte est momentanement limite. "
                     "Reessayez dans quelques minutes."}
@@ -372,7 +357,7 @@ def connect(username: str = "") -> dict:
 
 
 def invalidate(username: str | None = None) -> None:
-    """Oblige la prochaine lecture a reverifier -- apres toute action sur la session."""
+    """Force the next read to check again -- after any action on the session."""
     with _status_lock:
         if username:
             _status_cache.pop(username, None)

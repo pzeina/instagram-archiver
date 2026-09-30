@@ -1,12 +1,12 @@
-"""Lecture de l'export officiel Instagram (« Download Your Information »).
+"""Reading Instagram's official export ("Download Your Information").
 
-C'est la seule source qui donne la *date d'enregistrement* d'un contenu :
-l'interface d'Instagram n'expose que l'ordre, jamais la date. L'export, lui,
-ne contient pas les videos enregistrees. Les deux se completent, d'ou ce module.
+It is the only source that gives an item's *save date*: Instagram's interface
+exposes the order and never the date. The export, in turn, does not contain the
+saved videos. The two complete each other, which is why this module exists.
 
-Le format bouge d'une version a l'autre et depend de la langue du compte, donc
-rien n'est suppose ici : on descend recursivement dans le JSON et on retient
-toute entree qui porte un lien vers un contenu Instagram.
+The format shifts between versions and depends on the account's language, so
+nothing is assumed here: the JSON is walked recursively and every entry
+carrying a link to an Instagram item is kept.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from typing import Any, Iterator
 SAVED_FILENAMES = ("saved_posts.json", "saved_collections.json")
 SHORTCODE_RE = re.compile(r"instagram\.com/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)")
 
-# Dossiers ou l'export atterrit, selon la langue du systeme.
+# Folders the export lands in, depending on the system language.
 DOWNLOAD_DIR_NAMES = (
     "Downloads", "Telechargements", "Téléchargements", "Descargas",
     "Downloads", "Scaricati", "Transferencias",
@@ -30,7 +30,7 @@ DESKTOP_DIR_NAMES = ("Desktop", "Bureau", "Escritorio", "Scrivania")
 
 
 class ExportError(RuntimeError):
-    """Export illisible ou ne contenant pas les fichiers attendus."""
+    """Export unreadable, or missing the files we are looking for."""
 
 
 def shortcode_from_url(url: str) -> str | None:
@@ -39,7 +39,7 @@ def shortcode_from_url(url: str) -> str | None:
 
 
 def fix_mojibake(text: str) -> str:
-    """Les exports encodent l'UTF-8 en latin-1 : « Ã© » la ou il faut « é »."""
+    """Exports encode UTF-8 as latin-1: "Ã©" where "é" belongs."""
     if not text:
         return text
     try:
@@ -49,7 +49,7 @@ def fix_mojibake(text: str) -> str:
 
 
 def _iter_files(source: Path) -> Iterator[tuple[str, bytes]]:
-    """Rend (nom, contenu) pour les fichiers voulus, depuis un .zip ou un dossier."""
+    """Yield (name, contents) for the wanted files, from a .zip or a folder."""
     if source.is_file() and source.suffix.lower() == ".zip":
         try:
             with zipfile.ZipFile(source) as archive:
@@ -70,7 +70,7 @@ def _iter_files(source: Path) -> Iterator[tuple[str, bytes]]:
 
 
 def _walk_entries(node: Any) -> Iterator[dict]:
-    """Descend dans une structure JSON de forme inconnue jusqu'aux entrees utiles."""
+    """Walk a JSON structure of unknown shape down to the useful entries."""
     if isinstance(node, dict):
         if isinstance(node.get("string_map_data"), dict):
             yield node
@@ -82,11 +82,11 @@ def _walk_entries(node: Any) -> Iterator[dict]:
 
 
 def _merge(previous: dict, incoming: dict) -> dict:
-    """Fusionne deux vues d'un meme contenu.
+    """Merge two views of the same item.
 
-    Un post figure a la fois dans saved_posts.json et dans chaque collection qui
-    le contient : ecraser ferait perdre soit la date, soit la collection. On garde
-    la date la plus ancienne (le premier enregistrement) et l'union des collections.
+    A post appears both in saved_posts.json and in every collection holding it:
+    overwriting would lose either the date or the collection. The earliest date
+    is kept -- the first time it was saved -- along with the union of collections.
     """
     incoming_ts = incoming.get("saved_timestamp")
     previous_ts = previous.get("saved_timestamp")
@@ -111,7 +111,7 @@ def _merge(previous: dict, incoming: dict) -> dict:
 
 
 def parse(source: Path) -> dict[str, dict]:
-    """Rend {identifiant du contenu: fiche de date} pour tout l'export."""
+    """Return {item id: date record} for the whole export."""
     found: dict[str, dict] = {}
     files_seen = 0
 
@@ -124,7 +124,7 @@ def parse(source: Path) -> dict[str, dict]:
         is_collection = "saved_collections" in filename
 
         for entry in _walk_entries(payload):
-            # Le nom du champ depend de la langue : « Saved on », « Enregistré le »...
+            # The field name follows the account language: "Saved on", "Enregistré le"...
             for value in entry["string_map_data"].values():
                 code = shortcode_from_url(value.get("href", ""))
                 if not code:
@@ -156,7 +156,7 @@ def parse(source: Path) -> dict[str, dict]:
 
 
 def merge_into(existing: dict[str, dict], parsed: dict[str, dict]) -> tuple[dict, int]:
-    """Ajoute un export a ce qui est deja connu. Rend (total, nouveaux)."""
+    """Add an export to what is already known. Returns (total, newly added)."""
     added = 0
     for code, record in parsed.items():
         if code in existing:
@@ -168,19 +168,19 @@ def merge_into(existing: dict[str, dict], parsed: dict[str, dict]) -> tuple[dict
 
 
 # ---------------------------------------------------------------------------
-# detection automatique
+# automatic detection
 # ---------------------------------------------------------------------------
 
 def looks_like_export(source: Path) -> bool:
-    """Vrai si cette archive ou ce dossier contient les fichiers recherches.
+    """True if this archive or folder holds the files we are after.
 
-    On regarde le contenu plutot que le nom : Instagram a change plusieurs fois
-    la facon de nommer ses exports, et un nom n'est de toute facon pas une preuve.
+    The contents are inspected rather than the name: Instagram has renamed its
+    exports several times, and a name is no proof of anything anyway.
     """
     try:
         if source.is_file() and source.suffix.lower() == ".zip":
             with zipfile.ZipFile(source) as archive:
-                # Lire le sommaire suffit : le contenu n'est pas decompresse.
+                # Reading the index is enough; nothing is decompressed.
                 return any(Path(n).name in SAVED_FILENAMES for n in archive.namelist())
         if source.is_dir():
             return any(next(source.rglob(name), None) is not None
@@ -190,25 +190,25 @@ def looks_like_export(source: Path) -> bool:
     return False
 
 
-# Un export Instagram porte « instagram » ou « meta » dans son nom. On s'en sert
-# comme pre-filtre : sans lui, la detection ouvrirait chaque archive du dossier
-# de telechargement, ce qui est lent et n'a pas a se faire sur des fichiers
-# etrangers a l'outil.
+# An Instagram export carries "instagram" or "meta" in its name. That serves as
+# a pre-filter: without it, detection would open every archive in the downloads
+# folder, which is slow and has no business happening to files unrelated to
+# this program.
 EXPORT_NAME_HINTS = ("instagram", "meta-", "meta_")
 
 
 def find_exports(extra_dirs: "list[Path] | None" = None, *,
                  search_home: bool = True) -> list[Path]:
-    """Exports Instagram plausibles, du plus recent au plus ancien.
+    """Plausible Instagram exports, most recent first.
 
-    Un export volumineux arrive decoupe en plusieurs archives (« part-1 »,
-    « part-2 »...) : la fonction les rend toutes, et l'appelant les lit toutes.
+    A large export arrives split across several archives ("part-1", "part-2"...):
+    this returns all of them, and the caller reads all of them.
 
-    `search_home=False` limite la recherche aux dossiers passes en argument.
-    Lire « Telechargements », « Bureau » ou le dossier personnel fait apparaitre
-    une demande d'autorisation macOS, attribuee a l'application qui a lance le
-    programme : acceptable quand l'utilisateur vient de taper « igarchive dyi »,
-    deplace au milieu d'un telechargement qu'il n'a pas relie a ces dossiers.
+    `search_home=False` limits the search to the folders passed in. Reading
+    "Downloads", "Desktop" or the home folder raises a macOS permission prompt,
+    attributed to whichever application launched the program: acceptable when
+    the user has just typed "igarchive dyi", out of place in the middle of a
+    backup they never connected to those folders.
     """
     roots: list[Path] = list(extra_dirs or [])
     if search_home:
@@ -221,7 +221,7 @@ def find_exports(extra_dirs: "list[Path] | None" = None, *,
     for root in roots:
         if not root.is_dir():
             continue
-        # Un seul niveau : parcourir tout le dossier personnel serait trop lent.
+        # One level only: walking the whole home folder would be far too slow.
         try:
             entries = list(root.iterdir())
         except OSError:
@@ -246,7 +246,7 @@ def find_exports(extra_dirs: "list[Path] | None" = None, *,
 
 
 def parse_all(sources: "list[Path]") -> dict[str, dict]:
-    """Lit plusieurs exports et les fusionne — cas des exports decoupes."""
+    """Read several exports and merge them -- the split-export case."""
     merged: dict[str, dict] = {}
     for source in sources:
         merged, _ = merge_into(merged, parse(source))

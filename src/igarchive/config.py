@@ -1,4 +1,4 @@
-"""Configuration persistante, en JSON pour ne dependre d'aucune bibliotheque."""
+"""Persisted settings, kept as JSON so no library is needed to read them."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Any
 
 from igarchive import paths
 
-# Bornes de securite : en dessous, Instagram limite le compte tres vite.
+# Safety bounds: below these, Instagram rate limits the account very quickly.
 MIN_SLEEP = 1.0
 RECOMMENDED_SLEEP_MIN = 3.0
 RECOMMENDED_SLEEP_MAX = 8.0
@@ -17,7 +17,7 @@ RECOMMENDED_SLEEP_MAX = 8.0
 
 @dataclass
 class Config:
-    """Reglages de l'utilisateur. Tous modifiables depuis l'interface web."""
+    """User settings. All of them reachable from the web interface."""
 
     username: str = ""
     archive_dir: str = field(default_factory=lambda: str(paths.default_archive_dir()))
@@ -32,7 +32,7 @@ class Config:
     webui_port: int = 8765
     language: str = "en"
 
-    # -- chemins derives -------------------------------------------------
+    # -- derived paths ---------------------------------------------------
 
     @property
     def archive(self) -> Path:
@@ -68,10 +68,10 @@ class Config:
     # -- validation ------------------------------------------------------
 
     def problems_detail(self) -> list[dict]:
-        """Ce qui empeche un archivage, avec l'etape concernee.
+        """What stops a backup, along with the step it belongs to.
 
-        L'etape sert a l'interface : signaler « a corriger » sur les reglages
-        parce qu'aucun compte n'est renseigne designerait le mauvais endroit.
+        The step is for the interface: flagging the settings as "needs fixing"
+        because no account is set would point at the wrong place.
         """
         issues: list[dict] = []
         if not self.username.strip():
@@ -92,10 +92,10 @@ class Config:
         return issues
 
     def problems(self) -> list[str]:
-        """Liste lisible de ce qui empeche un archivage de demarrer."""
+        """Readable list of what stops a backup from starting."""
         return [issue["text"] for issue in self.problems_detail()]
 
-    # -- persistance -----------------------------------------------------
+    # -- persistence -----------------------------------------------------
 
     def save(self, path: Path | None = None) -> Path:
         target = path or paths.config_file()
@@ -108,10 +108,10 @@ class Config:
 
 
 def load(path: Path | None = None) -> Config:
-    """Lit la configuration ; rend les valeurs par defaut si le fichier manque.
+    """Read the settings, falling back to the defaults if the file is missing.
 
-    Les cles inconnues sont ignorees, pour qu'un fichier ecrit par une version
-    ulterieure n'empeche pas une version anterieure de demarrer.
+    Unknown keys are ignored, so a file written by a later version does not
+    stop an earlier one from starting.
     """
     target = path or paths.config_file()
     if not target.exists():

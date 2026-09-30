@@ -1,12 +1,12 @@
-"""Telechargement des contenus enregistres.
+"""Downloading saved content.
 
-Reprend toujours ou il s'est arrete : un registre (ledger.json) retient ce qui
-est fait, ce qui a echoue et ce qui a disparu. Interrompre le programme, perdre
-le reseau ou se faire limiter par Instagram ne fait jamais recommencer a zero.
+Always resumes where it stopped: a ledger (ledger.json) records what is done,
+what failed and what has gone. Interrupting the program, losing the network or
+being rate limited by Instagram never sends you back to the start.
 
-Le module ne connait ni terminal ni interface : il signale son avancement par
-un rappel de fonction, ce qui permet a la ligne de commande et a l'interface
-web de partager exactement le meme code.
+The module knows nothing of terminals or interfaces: it reports progress
+through a callback, which is what lets the command line and the web interface
+share exactly the same code.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ from igarchive import catalog
 from igarchive.catalog import Record
 from igarchive.config import Config
 
-# Erreurs definitives : le contenu n'existe plus ou n'est plus accessible.
+# Terminal errors: the item is gone, or no longer reachable.
 UNAVAILABLE = (
     PrivateProfileNotFollowedException,
     QueryReturnedNotFoundException,
@@ -45,13 +45,13 @@ UNAVAILABLE = (
     QueryReturnedBadRequestException,
 )
 
-# Un reel dure au plus 90 s ; au-dela, Instagram parle de video.
+# A reel runs 90 s at most; beyond that Instagram calls it a video.
 REEL_MAX_SECONDS = 91
 
 
 @dataclass
 class Progress:
-    """Etat instantane d'un archivage, lisible par n'importe quelle interface."""
+    """A snapshot of a backup in progress, readable by any interface."""
 
     phase: str = "pret"
     message: str = ""
@@ -76,7 +76,7 @@ def _noop(_: Progress) -> None:
 # ---------------------------------------------------------------------------
 
 def safe_component(text: str, limit: int = 40) -> str:
-    """Fragment de nom de dossier sur, sur macOS comme sur Linux."""
+    """A folder-name fragment that is safe on macOS as well as on Linux."""
     cleaned = re.sub(r"[^\w.\- ]+", "_", text, flags=re.UNICODE).strip(" ._-")
     return cleaned[:limit] or "inconnu"
 
@@ -91,7 +91,7 @@ def post_kind(post: Post) -> str:
 
 
 def quiet(post: Post, name: str, default: Any = None) -> Any:
-    """Certains champs declenchent une requete et peuvent echouer isolement."""
+    """Some fields trigger a request and can fail on their own."""
     try:
         return getattr(post, name)
     except (InstaloaderException, KeyError, TypeError, AttributeError):
@@ -188,7 +188,7 @@ def run(config: Config, loader: Instaloader, *,
         on_progress: ProgressCallback = _noop,
         cancel: threading.Event | None = None,
         dry_run: bool = False) -> Progress:
-    """Parcourt la bibliotheque « Enregistres » et archive ce qui manque."""
+    """Walk the saved library and back up whatever is missing."""
     cancel = cancel or threading.Event()
     progress = Progress(phase="demarrage", message="Ouverture de la bibliotheque...")
     on_progress(progress)
@@ -226,8 +226,8 @@ def run(config: Config, loader: Instaloader, *,
         code = post.shortcode
         entry = ledger.get(code, {})
 
-        # Deja archive : on rafraichit seulement le rang, qui bouge a chaque
-        # nouvel enregistrement, sans retelecharger.
+        # Already archived: only the rank is refreshed, since it shifts every
+        # time something new is saved. Nothing is downloaded again.
         if entry.get("status") == "ok":
             progress.skipped += 1
             consecutive_known += 1
@@ -271,7 +271,7 @@ def run(config: Config, loader: Instaloader, *,
             progress.bytes_total += record.bytes_total
 
         except TooManyRequestsException:
-            # Instagram limite le compte : s'arreter tout de suite protege le compte.
+            # Instagram is limiting the account; stopping at once protects it.
             progress.rate_limited = True
             progress.error = ("Instagram limite les requetes. L'archivage s'est arrete "
                               "pour proteger le compte : relance dans une a deux heures, "
@@ -296,7 +296,7 @@ def run(config: Config, loader: Instaloader, *,
         if progress.done and progress.done % 10 == 0:
             write_ledger(config, ledger)
 
-        # Pause aleatoire : un rythme regulier est ce qui declenche les limitations.
+        # A random pause: it is a steady rhythm that triggers rate limiting.
         delay = random.uniform(config.sleep_min, config.sleep_max)
         if cancel.wait(delay):
             progress.message = "Arrete a la demande."
@@ -311,7 +311,7 @@ def run(config: Config, loader: Instaloader, *,
 
 
 def _refresh_rank(config: Config, shortcode: str, rank: int) -> None:
-    """Met a jour le rang d'enregistrement d'une fiche deja ecrite."""
+    """Update the save rank of a record already written."""
     path = config.metadata_dir / f"{shortcode}.json"
     if not path.exists():
         return
@@ -325,15 +325,15 @@ def _refresh_rank(config: Config, shortcode: str, rank: int) -> None:
 
 
 def summary(config: Config) -> dict[str, Any]:
-    """Etat de l'archive, pour l'interface et la ligne de commande."""
+    """The state of the archive, for the interface and the command line."""
     ledger = read_ledger(config)
     counts: dict[str, int] = {}
     for entry in ledger.values():
         status = entry.get("status", "?")
         counts[status] = counts.get(status, 0) + 1
     saved_dates = read_saved_dates(config)
-    # Le registre porte deja la date de chaque recuperation : inutile d'en tenir
-    # une de plus, qui pourrait se desynchroniser.
+    # The ledger already carries the date of each retrieval; keeping another one
+    # would only give it something to drift out of step with.
     stamps = [e["fetched_at"] for e in ledger.values() if e.get("fetched_at")]
     return {
         "last_archived": max(stamps) if stamps else None,

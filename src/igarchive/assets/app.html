@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>igarchive</title>
 <style>
-  /* Deux reglages, un bouton. Tout le reste est soit decide pour l'utilisateur,
-     soit range dans le panneau depliant. La ligne de commande garde le reste. */
+  /* Two settings and one button. Everything else is either decided for the user
+     or tucked into the drawer. The command line keeps the rest. */
   :root {
     --paper:#f7f8fa; --panel:#fff; --ink:#16181d; --ink-2:#565d6b; --ink-3:#8a909c;
     --rule:#e2e6ec; --rule-2:#cdd3dc; --field:#fff;
@@ -283,14 +283,16 @@
 <script>
 const TOKEN = "__TOKEN__";
 
-// Traductions de l'interface. Le serveur a les siennes (i18n.py) pour ce qu'il
-// compose lui-meme ; ici vit ce que la page rend directement.
+// Interface translations. The server has its own (i18n.py) for what it composes
+// itself; what the page renders directly lives here.
 const T = {
   en: {
     tagline: "Local backup of your saved Instagram content.",
     account_label: "Instagram account",
     login_hint: "Sign in at", login_hint_end: ", then press the button again.",
     connect: "Connect the account", recheck: "Check again",
+    add_account: "＋ Add an account…",
+    add_hint: "Sign in to the other account at instagram.com, then choose this again.",
     st_unverified: "account not verified", st_connected: "connected: ",
     folder_label: "Backup folder", open: "Open",
     backup: "Back up my library", update: "Update my library",
@@ -344,6 +346,8 @@ const T = {
     account_label: "Compte Instagram",
     login_hint: "Connectez-vous sur", login_hint_end: ", puis réappuyez sur le bouton.",
     connect: "Connecter le compte", recheck: "Vérifier à nouveau",
+    add_account: "＋ Ajouter un compte…",
+    add_hint: "Connectez-vous à l'autre compte sur instagram.com, puis rechoisissez ceci.",
     st_unverified: "compte non vérifié", st_connected: "connecté : ",
     folder_label: "Dossier de sauvegarde", open: "Ouvrir",
     backup: "Sauvegarder ma bibliothèque", update: "Mettre à jour ma bibliothèque",
@@ -418,7 +422,7 @@ function applyLanguage(code) {
 const $ = (id) => document.getElementById(id);
 let running = false, pathTouched = false, lastState = null;
 
-// Reglages avances : ils ne vivent que dans la boite derriere l'engrenage.
+// Advanced settings: they live only in the dialog behind the gear.
 const ADVANCED = ["sleep_min","sleep_max","limit_per_run","stop_after_known",
   "download_videos","download_thumbnails","download_comments"];
 const CHECKBOXES = ["download_videos","download_thumbnails","download_comments"];
@@ -447,7 +451,7 @@ async function api(path, body) {
 }
 
 function bytes(n) {
-  // « octet » en français, « byte » en anglais : l'abréviation change avec la langue.
+  // A byte is an "octet" in French: the abbreviation follows the language.
   const units = lang === "fr" ? ["o","Ko","Mo","Go","To"] : ["B","KB","MB","GB","TB"];
   let i = 0, v = Number(n) || 0;
   while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
@@ -477,20 +481,21 @@ function render(state) {
   running = job.running;
 
   // --- compte ---
-  // L'interface n'interroge jamais Instagram d'elle-meme : elle affiche le
-  // resultat du dernier « Connecter le compte », ou rien du tout.
+  // The interface never queries Instagram on its own: it shows the result of
+  // the last "Connect the account", or nothing at all.
   const have = sessions.length > 0;
-  $("have-session").hidden = !have;
+  $("have-session").hidden = false;
   $("login-hint").hidden = !(s.checked && !s.valid);
   $("btn-connect").textContent = tr(s.valid ? "recheck" : "connect");
   $("btn-connect").className = s.valid ? "" : "main";
   if (!s.valid) $("btn-connect").style.cssText = "width:auto;margin-top:0";
 
   const select = $("account");
-  const wanted = sessions.join("|");
+  const wanted = sessions.join("|") + "|" + lang;
   if (select.dataset.filled !== wanted) {
     select.innerHTML = sessions
-      .map((n) => '<option value="' + n + '">' + n + "</option>").join("");
+      .map((n) => '<option value="' + n + '">' + n + "</option>").join("") +
+      '<option value="__add__">' + tr("add_account") + "</option>";
     select.dataset.filled = wanted;
   }
   if (state.config.username) select.value = state.config.username;
@@ -581,8 +586,16 @@ $("archive_dir").addEventListener("change", async () => {
 });
 
 $("account").addEventListener("change", async () => {
-  try { await api("/api/session/use", { username: $("account").value }); }
-  catch (e) { say("msg-session", e.message, "bad"); }
+  const chosen = $("account").value;
+  try {
+    if (chosen === "__add__") {
+      say("msg-session", tr("add_hint"));
+      const r = await api("/api/session/connect", { add: true });
+      say("msg-session", r.message, r.valid ? "ok" : "bad");
+    } else {
+      await api("/api/session/use", { username: chosen });
+    }
+  } catch (e) { say("msg-session", e.message, "bad"); }
   refresh();
 });
 
@@ -653,7 +666,7 @@ $("btn-lang").addEventListener("click", async () => {
   applyLanguage(next);
   try {
     await api("/api/config", { language: next });
-    await api("/api/catalog", {});   // le catalogue est un fichier : il se regenere
+    await api("/api/catalog", {});   // the catalogue is a file: regenerate it
   } catch (e) { say("msg", e.message, "bad"); }
   refresh();
 });

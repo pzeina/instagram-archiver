@@ -1,4 +1,4 @@
-"""L'export officiel : format localise, encodage casse, collections."""
+"""The official export: localised format, broken encoding, collections."""
 
 import json
 import unittest
@@ -10,7 +10,7 @@ from igarchive import dyi
 
 
 def mojibake(text: str) -> str:
-    """Reproduit le defaut d'encodage des exports Instagram."""
+    """Reproduce the encoding defect of Instagram exports."""
     return text.encode("utf-8").decode("latin-1")
 
 
@@ -50,8 +50,8 @@ class ExportParsing(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_reads_a_zip_and_a_folder_identically(self) -> None:
-        """Seul « source_file » differe legitimement : il est relatif a la racine
-        de la source, qui n'est pas la meme pour une archive et pour un dossier."""
+        """Only "source_file" legitimately differs: it is relative to the source
+        root, which is not the same for an archive and for a folder."""
         def without_source(parsed: dict) -> dict:
             return {code: {k: v for k, v in record.items() if k != "source_file"}
                     for code, record in parsed.items()}
@@ -72,8 +72,8 @@ class ExportParsing(unittest.TestCase):
                          - {"créateur.périgord", "studio_nordic", None})
 
     def test_keeps_the_collection_and_the_earliest_date(self) -> None:
-        """Un post figure dans saved_posts ET dans sa collection : ni l'un ni
-        l'autre ne doit ecraser le reste."""
+        """A post appears in saved_posts AND in its collection: neither may
+        overwrite the rest."""
         record = dyi.parse(self.zip)["AAA1"]
         self.assertEqual(record["saved_timestamp"], 1710000000)   # la plus ancienne
         self.assertEqual(record["collections"], ["Recettes été"])
@@ -109,7 +109,7 @@ if __name__ == "__main__":
 
 
 class ExportDetection(unittest.TestCase):
-    """Detection automatique : trouver l'export sans que l'utilisateur donne un chemin."""
+    """Automatic detection: finding the export without being given a path."""
 
     def setUp(self) -> None:
         self.tmp = TemporaryDirectory()
@@ -119,12 +119,12 @@ class ExportDetection(unittest.TestCase):
         with zipfile.ZipFile(self.real, "w") as archive:
             archive.writestr("saved/saved_posts.json", json.dumps(SAVED, ensure_ascii=False))
 
-        # Une archive sans rapport, qui porte tout de meme « instagram » dans son nom.
+        # An unrelated archive that still carries "instagram" in its name.
         self.impostor = self.dir / "instagram-fond-ecran.zip"
         with zipfile.ZipFile(self.impostor, "w") as archive:
             archive.writestr("image.png", b"pas un export")
 
-        # Une archive etrangere, qui ne doit jamais etre ouverte.
+        # A foreign archive, which must never be opened.
         self.stranger = self.dir / "sauvegarde-comptable.zip"
         with zipfile.ZipFile(self.stranger, "w") as archive:
             archive.writestr("saved/saved_posts.json", json.dumps(SAVED))
@@ -148,8 +148,8 @@ class ExportDetection(unittest.TestCase):
         self.assertIn(self.real.resolve(), found)
 
     def test_never_opens_archives_unrelated_to_instagram(self) -> None:
-        """Le pre-filtre par nom est autant une question de vitesse que de
-        discretion : rien ne justifie d'ouvrir les archives de l'utilisateur."""
+        """The name pre-filter is as much about discretion as about speed:
+        nothing justifies opening the user's own archives."""
         self.assertNotIn(self.stranger.resolve(), dyi.find_exports([self.dir]))
 
     def test_returns_the_most_recent_export_first(self) -> None:
@@ -161,8 +161,8 @@ class ExportDetection(unittest.TestCase):
         self.assertEqual(dyi.find_exports([self.dir])[0], self.real.resolve())
 
     def test_reads_a_split_export_as_one(self) -> None:
-        """Un export volumineux arrive en « part-1 », « part-2 »... ; la
-        bibliotheque complete n'existe qu'une fois les deux reunis."""
+        """A large export arrives as "part-1", "part-2"...; the complete library
+        exists only once both are put together."""
         second = self.dir / "instagram-moi-part-2.zip"
         other = {"saved_saved_media": [{"title": "autre", "string_map_data": {
             "Saved on": {"href": "https://www.instagram.com/p/CCC3/",

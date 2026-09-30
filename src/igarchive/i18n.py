@@ -168,16 +168,90 @@ STRINGS: dict[str, dict[str, str]] = {
 }
 
 
+_active = DEFAULT_LANGUAGE
+
+
+def set_language(language: str | None) -> str:
+    """Set the language used when a call does not name one.
+
+    A single-user desktop program has exactly one interface language at a time;
+    threading it through every call site would add noise and nothing else.
+    """
+    global _active
+    _active = normalise(language)
+    return _active
+
+
+def active() -> str:
+    return _active
+
+
 def normalise(language: str | None) -> str:
-    """Rend une langue prise en charge, l'anglais par defaut."""
+    """Return a supported language, English by default."""
     code = (language or "").strip().lower()[:2]
     return code if code in LANGUAGES else DEFAULT_LANGUAGE
 
 
-def t(key: str, language: str = DEFAULT_LANGUAGE, **fields: object) -> str:
-    """Traduit une cle. Une cle inconnue se signale plutot que de disparaitre."""
+def t(key: str, language: str | None = None, **fields: object) -> str:
+    """Translate a key. An unknown key shows itself rather than vanishing."""
     entry = STRINGS.get(key)
     if entry is None:
         return f"[{key}]"
-    text = entry.get(normalise(language), entry[DEFAULT_LANGUAGE])
+    text = entry.get(normalise(language or _active), entry[DEFAULT_LANGUAGE])
     return text.format(**fields) if fields else text
+
+STRINGS.update({
+    "no_firefox_profile": {
+        "en": "No Firefox profile found. Install Firefox and sign in to "
+              "instagram.com, or use another method.",
+        "fr": "Aucun profil Firefox trouvé. Installez Firefox et connectez-vous à "
+              "instagram.com, ou utilisez une autre méthode.",
+    },
+    "firefox_no_cookies": {
+        "en": "Firefox profile found, but no cookies.sqlite file.",
+        "fr": "Profil Firefox trouvé, mais aucun fichier cookies.sqlite.",
+    },
+    "needs_browser_cookie3": {
+        "en": "Reading {browser} cookies needs the browser_cookie3 package:\n"
+              "    pip install browser-cookie3\n"
+              "Otherwise use Firefox, or paste your sessionid cookie.",
+        "fr": "Lire les cookies de {browser} demande le paquet browser_cookie3 :\n"
+              "    pip install browser-cookie3\n"
+              "Sinon, utilisez Firefox ou collez votre cookie sessionid.",
+    },
+    "unknown_browser": {
+        "en": "Unknown browser: {browser}", "fr": "Navigateur inconnu : {browser}"},
+    "unsupported_browser": {
+        "en": "Browser not supported: {browser}. Choices: {choices}.",
+        "fr": "Navigateur non pris en charge : {browser}. Choix : {choices}.",
+    },
+    "cookie_read_failed": {
+        "en": "Could not read {browser} cookies: {error}",
+        "fr": "Lecture des cookies de {browser} impossible : {error}",
+    },
+    "no_cookie_given": {"en": "No cookie given.", "fr": "Aucun cookie fourni."},
+    "session_refused": {
+        "en": "Instagram refused the session: {error}",
+        "fr": "Instagram a refusé la session : {error}",
+    },
+    "session_invalid": {
+        "en": "Invalid session: Instagram recognises no signed-in account.\n"
+              "Sign in to instagram.com in your browser, then try again.",
+        "fr": "Session invalide : Instagram ne reconnaît aucun compte connecté.\n"
+              "Connectez-vous à instagram.com dans votre navigateur, puis recommencez.",
+    },
+    "no_saved_session": {
+        "en": "No saved session for {account}.",
+        "fr": "Aucune session enregistrée pour {account}.",
+    },
+    "session_unreadable": {
+        "en": "Session unreadable ({error}). Open it again.",
+        "fr": "Session illisible ({error}). Ouvrez-la à nouveau.",
+    },
+    "login_refused": {
+        "en": "Sign-in refused: {error}", "fr": "Connexion refusée : {error}"},
+    "credentials_required": {
+        "en": "Both a username and a password are required.",
+        "fr": "Identifiant et mot de passe sont tous deux requis.",
+    },
+})

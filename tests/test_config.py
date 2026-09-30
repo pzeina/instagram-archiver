@@ -1,4 +1,4 @@
-"""Configuration : persistance, tolerance aux fichiers d'une autre version."""
+"""Settings: persistence, and tolerance of files from another version."""
 
 import json
 import unittest
@@ -22,7 +22,7 @@ class ConfigRoundTrip(unittest.TestCase):
         self.assertEqual(config_module.load(self.path), original)
 
     def test_ignores_keys_it_does_not_know(self) -> None:
-        """Un fichier ecrit par une version ulterieure ne doit pas bloquer le demarrage."""
+        """A file written by a later version must not stop the program starting."""
         self.path.write_text(json.dumps({"username": "moi", "reglage_futur": 42}),
                              encoding="utf-8")
         self.assertEqual(config_module.load(self.path).username, "moi")
@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
 
 class ProblemsPointAtTheRightStep(unittest.TestCase):
-    """L'interface signale chaque probleme a l'endroit ou il se corrige."""
+    """The interface flags each problem where it can be fixed."""
 
     def test_a_missing_account_belongs_to_the_account_step(self) -> None:
         detail = config_module.Config().problems_detail()
@@ -70,7 +70,7 @@ class ProblemsPointAtTheRightStep(unittest.TestCase):
         self.assertTrue(pauses and all(i["step"] == 2 for i in pauses))
 
     def test_settings_are_clean_when_only_the_account_is_missing(self) -> None:
-        """Rien dans les reglages n'est fautif parce qu'aucun compte n'est saisi."""
+        """Nothing in the settings is at fault because no account is set."""
         detail = config_module.Config().problems_detail()
         self.assertEqual([i for i in detail if i["step"] == 2], [])
 
@@ -86,7 +86,7 @@ class LanguageDefaultsToEnglish(unittest.TestCase):
         self.assertEqual(i18n.DEFAULT_LANGUAGE, "en")
 
     def test_every_string_exists_in_both_languages(self) -> None:
-        """Une traduction manquante doit tomber au test, pas devant l'utilisateur."""
+        """A missing translation must fail here, not in front of the user."""
         from igarchive import i18n
         incomplete = {key for key, entry in i18n.STRINGS.items()
                       if set(entry) != set(i18n.LANGUAGES)}

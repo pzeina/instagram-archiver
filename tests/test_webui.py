@@ -1,8 +1,7 @@
-"""Le serveur de l'interface, demarre pour de vrai sur un port ephemere.
+"""The interface server, genuinely started on an ephemeral port.
 
-Ces tests ne touchent jamais Instagram : ils verifient l'aiguillage, le controle
-du jeton et le traitement des erreurs, c'est-a-dire tout ce qui se passe avant
-qu'une requete parte sur le reseau.
+These tests never touch Instagram: they check routing, token enforcement and
+error handling -- everything that happens before a request leaves the machine.
 """
 
 import json
@@ -21,8 +20,8 @@ from igarchive import i18n, webui
 
 class ServerCase(unittest.TestCase):
     def setUp(self) -> None:
-        # Toute la configuration part dans un dossier jetable : aucun reglage
-        # reel de la machine n'est lu ni ecrit par les tests.
+        # All settings go to a throwaway folder: no real setting on this machine
+        # is read or written by the tests.
         self.tmp = TemporaryDirectory()
         self._old_xdg = os.environ.get("XDG_CONFIG_HOME")
         os.environ["XDG_CONFIG_HOME"] = self.tmp.name
@@ -81,7 +80,7 @@ class TokenProtection(ServerCase):
         self.assertEqual(status, 403)
 
     def test_the_page_itself_is_served_without_a_token(self) -> None:
-        """La page porte le jeton : elle doit donc etre lisible sans lui."""
+        """The page carries the token, so it must be readable without one."""
         with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/", timeout=10) as response:
             page = response.read().decode("utf-8")
         self.assertEqual(response.status, 200)
@@ -137,8 +136,8 @@ class ErrorHandling(ServerCase):
             self.assertEqual(error.code, 400)
 
     def test_starting_without_a_session_explains_why(self) -> None:
-        """On verifie le message employe, pas sa formulation : elle change avec
-        la langue et il n'y a rien a apprendre d'une chaine figee."""
+        """The message used is checked, not its wording: that changes with the
+        language, and a frozen string teaches nothing."""
         status, payload = self.call("/api/fetch/start", {})
         self.assertEqual(status, 400)
         self.assertEqual(payload["error"], i18n.t("connect_first", "en"))
@@ -174,12 +173,11 @@ if __name__ == "__main__":
 
 
 class DownloadTouchesNothingOutsideTheArchive(ServerCase):
-    """Un telechargement ne doit lire aucun dossier du systeme.
+    """A backup must not read any system folder.
 
-    Parcourir « Telechargements », « Bureau » ou le dossier personnel fait
-    surgir une demande d'autorisation macOS au milieu d'un telechargement,
-    attribuee a l'application qui a lance le programme. Rien dans un archivage
-    ne justifie d'aller regarder la.
+    Walking "Downloads", "Desktop" or the home folder raises a macOS permission
+    prompt in the middle of a backup, attributed to whichever application
+    launched the program. Nothing about archiving justifies looking there.
     """
 
     def test_the_download_path_never_searches_the_home_directory(self) -> None:
@@ -200,7 +198,7 @@ class DownloadTouchesNothingOutsideTheArchive(ServerCase):
         self.assertTrue(all(not call["home"] for call in seen), seen)
 
     def test_an_explicit_command_may_still_search_the_usual_folders(self) -> None:
-        """L'utilisateur qui tape « igarchive dyi » demande justement cela."""
+        """A user typing "igarchive dyi" is asking for exactly that."""
         from igarchive import dyi
         import inspect
 
@@ -209,9 +207,9 @@ class DownloadTouchesNothingOutsideTheArchive(ServerCase):
 
 
 class LaunchingTwiceShowsTheOpenWindow(ServerCase):
-    """Relancer le programme alors qu'il tourne deja est le cas le plus frequent
-    d'un port occupe. Refuser de demarrer laisse l'utilisateur devant une erreur
-    au lieu de la fenetre qu'il cherchait."""
+    """Launching the program while it is already running is the commonest cause
+    of a busy port. Refusing to start leaves the user facing an error instead of
+    the window they were looking for."""
 
     def test_an_igarchive_already_listening_is_recognised(self) -> None:
         self.assertTrue(webui.already_running(self.port))
@@ -250,3 +248,31 @@ class LaunchingTwiceShowsTheOpenWindow(ServerCase):
         finally:
             server.close()
             thread.join(timeout=3)
+
+
+class AddingASecondAccount(ServerCase):
+    """Adding an account means: sign in elsewhere, then tell us to look again.
+    No account can be assumed, which is what the `add` flag expresses."""
+
+    def test_adding_assumes_no_account(self) -> None:
+        from unittest import mock
+
+        from igarchive import session
+
+        asked: list[str] = []
+
+        def spy(username: str = "") -> dict:
+            asked.append(username)
+            return {"checked": True, "valid": False, "account": None,
+                    "exists": False, "reachable": True, "message": "none"}
+
+        self.state.config.username = "someone"
+        with mock.patch.object(session, "connect", spy):
+            self.call("/api/session/connect", {"add": True})
+            self.call("/api/session/connect", {})
+        self.assertEqual(asked, ["", "someone"])
+
+    def test_switching_to_an_unknown_account_is_refused(self) -> None:
+        status, payload = self.call("/api/session/use", {"username": "ghost"})
+        self.assertEqual(status, 400)
+        self.assertIn("ghost", payload["error"])

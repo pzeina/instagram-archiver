@@ -1,8 +1,8 @@
-"""Fiche normalisee d'un contenu, et les trois sorties du catalogue.
+"""The normalised record of an item, and the catalogue's three outputs.
 
-Une fiche par contenu est ecrite dans metadata/. Le catalogue se reconstruit
-entierement a partir de ces fiches : rien n'oblige a retelecharger pour changer
-la presentation, et les fiches restent lisibles sans cet outil.
+One record per item is written to metadata/. The catalogue is rebuilt entirely
+from those records: nothing has to be downloaded again to change the
+presentation, and the records stay readable without this program.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ UNSORTED_NAME = "No collection"   # nom de dossier, volontairement stable
 
 @dataclass
 class Record:
-    """Tout ce qu'on retient d'un contenu, independamment de l'API d'Instagram."""
+    """Everything kept about an item, independent of Instagram's API."""
 
     schema_version: int = SCHEMA_VERSION
     shortcode: str = ""
@@ -76,7 +76,7 @@ class Record:
 
 
 # ---------------------------------------------------------------------------
-# lecture / ecriture des fiches
+# reading and writing records
 # ---------------------------------------------------------------------------
 
 def write_record(metadata_dir: Path, record: Record) -> Path:
@@ -90,7 +90,7 @@ def write_record(metadata_dir: Path, record: Record) -> Path:
 
 
 def load_records(metadata_dir: Path) -> list[dict]:
-    """Toutes les fiches, triees : enregistre le plus recemment d'abord."""
+    """Every record, ordered with the most recently saved first."""
     records: list[dict] = []
     if not metadata_dir.is_dir():
         return records
@@ -108,7 +108,7 @@ def load_records(metadata_dir: Path) -> list[dict]:
 
 
 def apply_saved_dates(metadata_dir: Path, saved_dates: dict[str, dict]) -> int:
-    """Reporte les dates de l'export officiel sur les fiches deja ecrites."""
+    """Carry the official export's dates onto records already written."""
     patched = 0
     for path in sorted(metadata_dir.glob("*.json")):
         try:
@@ -131,11 +131,11 @@ def apply_saved_dates(metadata_dir: Path, saved_dates: dict[str, dict]) -> int:
 
 
 # ---------------------------------------------------------------------------
-# sorties
+# outputs
 # ---------------------------------------------------------------------------
 
 def safe_folder_name(name: str, limit: int = 80) -> str:
-    """Nom de collection utilisable comme nom de dossier sur macOS et Linux."""
+    """A collection name usable as a folder name on macOS and Linux."""
     cleaned = re.sub(r"[/\\:\x00-\x1f]+", "-", name).strip(" .")
     return cleaned[:limit] or "Sans nom"
 
@@ -148,17 +148,17 @@ def record_collections(record: dict) -> list[str]:
 
 
 def build_collection_links(archive: Path, records: list[dict]) -> dict[str, Any]:
-    """Recree l'arborescence des collections, comme dans l'application.
+    """Rebuild the collection tree, as it appears in the app.
 
-    Ce sont des liens symboliques, pas des copies : un reel range dans trois
-    collections n'occupe la place qu'une fois. Les liens sont relatifs, donc
-    l'archive reste deplacable d'un disque a l'autre.
+    These are symbolic links, not copies: a reel filed under three collections
+    takes the space of one. The links are relative, so the archive stays movable
+    from one disk to another.
     """
     root = archive / COLLECTIONS_DIR
 
-    # Nettoyage : on ne supprime QUE des liens symboliques, jamais un fichier
-    # reel. Une collection supprimee dans l'application disparait ainsi d'ici
-    # sans qu'aucun media ne soit touche.
+    # Cleanup removes ONLY symbolic links, never a real file. A collection
+    # deleted in the app therefore disappears from here without any media being
+    # touched.
     removed = 0
     if root.exists():
         for path in sorted(root.rglob("*"), reverse=True):
@@ -177,15 +177,15 @@ def build_collection_links(archive: Path, records: list[dict]) -> dict[str, Any]
         for name in record_collections(record):
             folder = root / safe_folder_name(name)
             link = folder / Path(directory).name
-            # Depuis collections/<nom>/<lien>, le media est deux crans au-dessus.
+            # From collections/<name>/<link>, the media sits two levels up.
             target = Path("..") / ".." / directory
             try:
                 folder.mkdir(parents=True, exist_ok=True)
                 if not link.is_symlink() and not link.exists():
                     link.symlink_to(target, target_is_directory=True)
             except OSError as exc:
-                # Certains systemes de fichiers (exFAT d'un disque externe) ne
-                # gerent pas les liens. Le catalogue reste utilisable sans eux.
+                # Some filesystems (exFAT on an external disk) have no links.
+                # The catalogue stays usable without them.
                 return {"supported": False, "error": str(exc), "collections": counts,
                         "removed": removed}
             counts[name] = counts.get(name, 0) + 1
@@ -201,7 +201,7 @@ def write_json_catalog(archive: Path, records: list[dict]) -> Path:
 
 def write_csv_catalog(archive: Path, records: list[dict]) -> Path:
     target = archive / "catalog.csv"
-    # utf-8-sig : le BOM fait ouvrir le fichier correctement par Excel et Numbers.
+    # utf-8-sig: the BOM is what makes Excel and Numbers open this correctly.
     with target.open("w", newline="", encoding="utf-8-sig") as handle:
         writer = csv.DictWriter(handle, fieldnames=CSV_COLUMNS, extrasaction="ignore")
         writer.writeheader()
@@ -215,9 +215,9 @@ def write_csv_catalog(archive: Path, records: list[dict]) -> Path:
 
 
 PAGE_CSS = """
-/* Registre de consultation : des planches et leur legende, separees par du
-   blanc plutot que par des boites. Meme palette et meme typographie que la
-   page de reglages, pour que les deux ne fassent qu'un seul objet. */
+/* A reading register: plates with their captions, separated by whitespace
+   rather than by boxes. Same palette and typography as the settings page, so
+   the two read as one object. */
 :root {
   --paper:#f7f8fa; --ink:#16181d; --ink-2:#565d6b; --ink-3:#8a909c;
   --rule:#e2e6ec; --rule-2:#cdd3dc; --field:#fff; --mount:#eceef2;
@@ -236,7 +236,7 @@ body { margin:0; background:var(--paper); color:var(--ink);
   font:15px/1.6 var(--sans); font-variant-numeric:tabular-nums; }
 .wrap { max-width:76rem; margin:0 auto; padding:0 1.5rem; }
 
-/* ---- en-tete : le bloc d'identification du registre ---- */
+/* ---- header: the register's identification block ---- */
 header { position:sticky; top:0; z-index:5; background:var(--paper);
   border-bottom:1px solid var(--rule); padding:1.5rem 0 1.1rem; }
 h1 { font-size:1.25rem; font-weight:600; letter-spacing:-.02em; margin:0; }
@@ -262,13 +262,13 @@ button.on { background:var(--signal); border-color:var(--signal); color:var(--pa
   font-size:.8125rem; color:var(--ink-2); max-width:52rem; }
 .banner b { font-weight:600; color:var(--ink); }
 
-/* ---- planches ---- */
+/* ---- plates ---- */
 .grid { display:grid; gap:2.25rem 1.75rem; padding:2rem 0 5rem;
   grid-template-columns:repeat(auto-fill,minmax(15rem,1fr)); }
 .card { display:flex; flex-direction:column; min-width:0; }
 
-/* Le format 4/5 est celui de la plupart des contenus ; « contain » montre le
-   cadre entier plutot que d'en recadrer une partie, ce qu'une archive doit. */
+/* 4/5 is the shape of most items; "contain" shows the whole frame rather than
+   cropping part of it away, which is what an archive owes its contents. */
 .media { position:relative; aspect-ratio:4/5; background:var(--mount);
   overflow:hidden; border-radius:2px; box-shadow:inset 0 0 0 1px rgba(0,0,0,.05); }
 .media video, .media img { position:absolute; inset:0; width:100%; height:100%;
@@ -364,9 +364,9 @@ def _card(record: dict, lang: str) -> str:
 
     caption = record.get("caption") or ""
 
-    # La date d'enregistrement ne vient que de l'export officiel. Tant qu'il n'a
-    # pas ete importe, on n'a que l'ordre : autant le dire plutot que d'afficher
-    # un « rang 3 » que rien n'explique.
+    # The save date comes only from the official export. Until it is imported,
+    # all we have is the order -- better to say so than to show a bare "rank 3"
+    # that explains nothing.
     saved_at = (record.get("saved_at") or "")[:10]
     if saved_at:
         saved_html = (f'<span>{esc(i18n.t("cat_saved_on", lang))}'
@@ -472,7 +472,7 @@ def write_html_catalog(archive: Path, records: list[dict],
 def build(archive: Path, metadata_dir: Path,
           saved_dates: dict[str, dict] | None = None,
           lang: str = i18n.DEFAULT_LANGUAGE) -> dict[str, Any]:
-    """Reconstruit les trois sorties. Rend un resume pour l'appelant."""
+    """Rebuild the three outputs. Returns a summary for the caller."""
     archive.mkdir(parents=True, exist_ok=True)
     patched = apply_saved_dates(metadata_dir, saved_dates) if saved_dates else 0
     records = load_records(metadata_dir)

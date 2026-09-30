@@ -1,14 +1,14 @@
-"""Interface de configuration, servie localement par la bibliotheque standard.
+"""The settings interface, served locally by the standard library.
 
-Choix de conception : plutot qu'une bibliotheque graphique (Tk, Qt, GTK), qui
-impose un paquet systeme different sur chaque distribution et n'est pas toujours
-presente dans les installations Python de macOS, l'interface est une page servie
-sur 127.0.0.1 et ouverte dans le navigateur deja installe. Rien a compiler,
-rendu identique sur macOS et Linux, aucune dependance supplementaire.
+A design choice: rather than a GUI toolkit (Tk, Qt, GTK), which needs a
+different system package on every distribution and is missing from many macOS
+Python installs, the interface is a page served on 127.0.0.1 and opened in the
+browser already present. Nothing to compile, the same rendering on macOS and
+Linux, no extra dependency.
 
-Securite : le serveur n'ecoute que sur l'interface locale, et chaque appel a
-l'API doit porter un jeton tire au hasard au demarrage. Sans ce jeton, une page
-web ouverte par ailleurs dans le meme navigateur ne peut pas piloter l'outil.
+Security: the server listens on the loopback interface only, and every API call
+must carry a token drawn at random on startup. Without that token, another web
+page open in the same browser cannot drive the program.
 """
 
 from __future__ import annotations
@@ -37,16 +37,17 @@ UPLOAD_CHUNK = 1 << 20
 
 
 class AppState:
-    """Ce que le serveur partage entre toutes les requetes."""
+    """What the server shares across every request."""
 
     def __init__(self) -> None:
         self.config: Config = config_module.load()
+        i18n.set_language(self.config.language)
         self.runner = JobRunner()
         self.token = secrets.token_urlsafe(24)
         self.lock = threading.Lock()
-        # Resultat du dernier « Connecter le compte ». Tant qu'il est None,
-        # l'interface ne sait rien et ne pretend rien : elle n'interroge jamais
-        # Instagram d'elle-meme.
+        # Result of the last "Connect the account". While it is None the
+        # interface knows nothing and claims nothing: it never queries Instagram
+        # on its own.
         self.checked: dict[str, Any] | None = None
 
     # -- vue d'ensemble --------------------------------------------------
@@ -70,15 +71,14 @@ class AppState:
         }
 
 
-# Relire toutes les fiches a chaque rafraichissement de la page coute un acces
-# disque par contenu, une fois par seconde et demie. Quelques secondes de
-# retard sur un compteur ne genent personne.
+# Re-reading every record on each page refresh costs one disk access per item,
+# every second and a half. A few seconds of lag on a counter bothers nobody.
 _SUMMARY_TTL = 4.0
 _summary_cache: "dict[str, tuple[float, dict]]" = {}
 
 
 def _collection_summary(cfg: Config) -> dict[str, Any]:
-    """Nombre de contenus par collection, lu sans rien reconstruire."""
+    """Item count per collection, read without rebuilding anything."""
     key = str(cfg.metadata_dir)
     now = time.monotonic()
     cached = _summary_cache.get(key)
@@ -96,7 +96,7 @@ def _collection_summary(cfg: Config) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# actions de l'API
+# API actions
 # ---------------------------------------------------------------------------
 
 def action_save_config(state: AppState, body: dict) -> dict:
@@ -104,8 +104,8 @@ def action_save_config(state: AppState, body: dict) -> dict:
     known = set(current)
     incoming = {k: v for k, v in body.items() if k in known}
 
-    # Les nombres arrivent en texte depuis un formulaire : on convertit sans
-    # laisser une saisie vide effacer un reglage valide.
+    # Numbers arrive as text from a form: convert them without letting an empty
+    # field wipe out a valid setting.
     for key in ("sleep_min", "sleep_max"):
         if key in incoming:
             try:
@@ -128,6 +128,7 @@ def action_save_config(state: AppState, body: dict) -> dict:
     new_config = Config(**merged)
     new_config.save()
     state.config = new_config
+    i18n.set_language(new_config.language)
     return {"ok": True, "config": asdict(new_config), "problems": new_config.problems()}
 
 
@@ -143,8 +144,14 @@ def action_session_browser(state: AppState, body: dict) -> dict:
 
 
 def action_session_connect(state: AppState, body: dict) -> dict:
-    """Le seul endroit ou Instagram est interroge au sujet de la session."""
-    result = session.connect(str(body.get("username") or state.config.username))
+    """The one place where Instagram is asked about the session.
+
+    With ``add``, no account is assumed: whichever one the browser is signed
+    into is taken. That is what adding a second account means in practice --
+    the user signs in elsewhere, then tells us to look again.
+    """
+    wanted = "" if body.get("add") else str(body.get("username") or state.config.username)
+    result = session.connect(wanted)
     state.checked = result
     if result.get("account") and result["account"] != state.config.username:
         state.config.username = result["account"]
@@ -153,7 +160,7 @@ def action_session_connect(state: AppState, body: dict) -> dict:
 
 
 def action_session_use(state: AppState, body: dict) -> dict:
-    """Bascule sur une session deja enregistree."""
+    """Switch to a session already stored."""
     username = str(body.get("username") or "").strip()
     if username not in session.list_sessions():
         raise ValueError(f"Aucune session enregistree pour {username}.")
@@ -204,10 +211,10 @@ def action_dyi(state: AppState, body: dict) -> dict:
 
 
 def ingest_exports(state: AppState, sources: list[Path]) -> dict:
-    """Lit un ou plusieurs exports et fusionne dates et collections.
+    """Read one or more exports and merge dates and collections.
 
-    Reconstruit le catalogue dans la foulee : les fiches deja ecrites gagnent
-    leur date et leur collection sans qu'aucun media soit retelecharge.
+    Rebuilds the catalogue straight away: records already written gain their
+    date and their collection with no media downloaded again.
     """
     parsed = dyi.parse_all(sources)
     merged, added = dyi.merge_into(fetch.read_saved_dates(state.config), parsed)
@@ -233,7 +240,7 @@ def ingest_export(state: AppState, source: Path) -> dict:
 
 
 def action_dyi_auto(state: AppState, body: dict) -> dict:
-    """Cherche l'export dans les telechargements et sur le bureau."""
+    """Look for the export in the downloads folder and on the desktop."""
     sources = dyi.find_exports()
     if not sources:
         raise ValueError(
@@ -269,11 +276,10 @@ def action_fetch_start(state: AppState, body: dict) -> dict:
     runner = state.runner
 
     def work(cancel: threading.Event, report: Callable) -> None:
-        # L'export officiel est la seule source des dates d'enregistrement et des
-        # collections. On ne le cherche que dans le dossier d'archive, choisi par
-        # l'utilisateur : balayer « Telechargements » ferait surgir une demande
-        # d'autorisation macOS au milieu d'un telechargement, sans rapport visible
-        # avec ce qui vient d'etre demande.
+        # The official export is the only source of save dates and collections.
+        # It is looked for in the archive folder alone, which the user chose:
+        # sweeping "Downloads" would raise a macOS permission prompt in the
+        # middle of a backup, with no visible link to what was just asked for.
         try:
             found = dyi.find_exports([cfg.archive], search_home=False)
             if found:
@@ -351,7 +357,7 @@ ACTIONS: dict[str, Callable[[AppState, dict], dict]] = {
 
 
 # ---------------------------------------------------------------------------
-# serveur
+# server
 # ---------------------------------------------------------------------------
 
 class Handler(BaseHTTPRequestHandler):
@@ -382,7 +388,7 @@ class Handler(BaseHTTPRequestHandler):
         )
 
     def log_message(self, fmt: str, *args) -> None:
-        """Silence : le journal utile est celui de l'interface, pas celui d'HTTP."""
+        """Silence: the useful log is the interface's, not HTTP's."""
 
     # -- routes ----------------------------------------------------------
 
@@ -402,7 +408,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json(404, {"ok": False, "error": "Route inconnue."})
 
     def _handle_upload(self) -> None:
-        """Recoit le .zip de l'export, par morceaux, sans le charger en memoire."""
+        """Receive the export .zip in chunks, without holding it in memory."""
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0:
             self._json(400, {"ok": False, "error": "Fichier vide."})
@@ -463,7 +469,7 @@ class Handler(BaseHTTPRequestHandler):
                 result = action(self.state, body if isinstance(body, dict) else {})
             self._json(200, result)
         except (session.SessionError, dyi.ExportError, ValueError) as exc:
-            # Erreurs attendues : le message est ecrit pour l'utilisateur.
+            # Expected errors: the message is written for the user.
             self._json(400, {"ok": False, "error": str(exc)})
         except Exception as exc:  # noqa: BLE001 -- ne jamais tuer le serveur
             self._json(500, {"ok": False,
@@ -471,10 +477,10 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def already_running(port: int) -> bool:
-    """Vrai si le port est tenu par une autre instance d'igarchive.
+    """True if the port is held by another igarchive instance.
 
-    On interroge le port plutot que la liste des processus : c'est portable, et
-    l'en-tete Server suffit a reconnaitre le programme.
+    The port is queried rather than the process list: that is portable, and the
+    Server header is enough to recognise the program.
     """
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=2) as response:
@@ -484,7 +490,7 @@ def already_running(port: int) -> bool:
 
 
 def serve(port: int | None = None, *, open_browser: bool = True) -> None:
-    """Demarre l'interface et bloque jusqu'a Ctrl-C."""
+    """Start the interface and block until Ctrl-C."""
     state = AppState()
     port = port or state.config.webui_port
     handler = partial(Handler, state=state)
@@ -492,8 +498,8 @@ def serve(port: int | None = None, *, open_browser: bool = True) -> None:
     try:
         httpd = ThreadingHTTPServer(("127.0.0.1", port), handler)
     except OSError as exc:
-        # Le cas de loin le plus frequent est une fenetre deja ouverte. Refuser
-        # de demarrer serait absurde : autant montrer celle qui tourne.
+        # By far the most common case is a window already open. Refusing to
+        # start would be absurd; showing the running one is the useful answer.
         if already_running(port):
             url = f"http://127.0.0.1:{port}/"
             print(f"igarchive tourne deja sur {url} — ouverture de cette fenetre.")
