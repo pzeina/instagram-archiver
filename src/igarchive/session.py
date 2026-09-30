@@ -16,6 +16,8 @@ from __future__ import annotations
 import shutil
 import sqlite3
 import tempfile
+import threading
+import time
 from pathlib import Path
 
 from instaloader import Instaloader
@@ -130,6 +132,7 @@ def _persist(loader: Instaloader, username: str) -> Path:
     target = directory / f"{username}.session"
     loader.save_session_to_file(str(target))
     target.chmod(0o600)
+    invalidate(username)
     return target
 
 
@@ -231,23 +234,101 @@ def load(username: str) -> Instaloader:
     return loader
 
 
-def status(username: str) -> dict:
-    """Etat de la session, pour l'interface : presente ? valide ? quel compte ?"""
-    target = paths.sessions_dir() / f"{username}.session" if username else None
-    if not username or not target or not target.exists():
-        return {"exists": False, "valid": False, "account": None}
+# Verifier une session est une requete reseau. La page se rafraichit toutes les
+# secondes et demie : sans garde-fou, afficher un temoin coutait des milliers de
+# requetes par heure, ce qui est precisement le rythme qui fait limiter un compte.
+STATUS_TTL = 120.0
+_status_cache: "dict[str, tuple[float, dict]]" = {}
+_status_lock = threading.Lock()
+
+
+def _probe(username: str) -> dict:
+    """Etat reel d'une session, en distinguant « perimee » de « invisible ».
+
+    Une requete qui echoue ne prouve pas qu'une session est perimee : le reseau
+    peut manquer, ou Instagram limiter le compte. Les confondre faisait afficher
+    « session expiree » a un utilisateur parfaitement connecte.
+    """
+    target = paths.sessions_dir() / f"{username}.session"
+    if not username or not target.exists():
+        return {"exists": False, "valid": False, "account": None,
+                "reachable": True, "error": None}
     try:
         loader = load(username)
+    except (SessionError, OSError) as exc:
+        return {"exists": True, "valid": False, "account": None,
+                "reachable": False, "error": str(exc)[:200]}
+
+    # test_login() rend None dans deux cas opposes : la session est reellement
+    # deconnectee, ou la question n'a pas pu etre posee (reseau coupe, ou
+    # « feedback_required », la reponse d'Instagram a un compte qu'il limite).
+    # Il ne journalise une erreur que dans le second cas : c'est ce qui les
+    # separe. Les confondre affichait « session expiree » a un utilisateur
+    # parfaitement connecte, dont les telechargements marchaient.
+    log = loader.context.error_log
+    before = len(log)
+    try:
         actual = loader.test_login()
-    except (SessionError, InstaloaderException, OSError) as exc:
-        return {"exists": True, "valid": False, "account": None, "error": str(exc)[:200]}
-    return {"exists": True, "valid": bool(actual), "account": actual}
+    except (InstaloaderException, OSError) as exc:
+        return {"exists": True, "valid": False, "account": None,
+                "reachable": False, "error": str(exc)[:200]}
+
+    if actual:
+        return {"exists": True, "valid": True, "account": actual,
+                "reachable": True, "error": None}
+    if len(log) > before:
+        return {"exists": True, "valid": False, "account": None,
+                "reachable": False, "error": str(log[-1])[:200]}
+    return {"exists": True, "valid": False, "account": None,
+            "reachable": True, "error": None}
+
+
+def status(username: str, *, force: bool = False, recover: bool = True) -> dict:
+    """Etat de la session, verifie au plus une fois par STATUS_TTL secondes.
+
+    Quand la session enregistree est reellement perimee, on regarde si le
+    navigateur en porte une nouvelle : se reconnecter sur instagram.com doit
+    suffire, sans avoir a revenir appuyer sur un bouton.
+    """
+    if not username:
+        return {"exists": False, "valid": False, "account": None,
+                "reachable": True, "error": None}
+
+    now = time.monotonic()
+    with _status_lock:
+        cached = _status_cache.get(username)
+        if cached and not force and now - cached[0] < STATUS_TTL:
+            return cached[1]
+
+    result = _probe(username)
+
+    if recover and result["exists"] and result["reachable"] and not result["valid"]:
+        try:
+            account, _ = open_auto(username)
+            result = _probe(account)
+            result["recovered"] = account
+        except SessionError:
+            pass   # rien de neuf dans le navigateur : la session reste perimee
+
+    with _status_lock:
+        _status_cache[username] = (time.monotonic(), result)
+    return result
+
+
+def invalidate(username: str | None = None) -> None:
+    """Oblige la prochaine lecture a reverifier -- apres toute action sur la session."""
+    with _status_lock:
+        if username:
+            _status_cache.pop(username, None)
+        else:
+            _status_cache.clear()
 
 
 def forget(username: str) -> bool:
     target = paths.sessions_dir() / f"{username}.session"
     if target.exists():
         target.unlink()
+        invalidate(username)
         return True
     return False
 
