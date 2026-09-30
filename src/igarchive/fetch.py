@@ -332,7 +332,11 @@ def summary(config: Config) -> dict[str, Any]:
         status = entry.get("status", "?")
         counts[status] = counts.get(status, 0) + 1
     saved_dates = read_saved_dates(config)
+    # Le registre porte deja la date de chaque recuperation : inutile d'en tenir
+    # une de plus, qui pourrait se desynchroniser.
+    stamps = [e["fetched_at"] for e in ledger.values() if e.get("fetched_at")]
     return {
+        "last_archived": max(stamps) if stamps else None,
         "archived": counts.get("ok", 0),
         "unavailable": counts.get("unavailable", 0),
         "failed": counts.get("failed", 0),

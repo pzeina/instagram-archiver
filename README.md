@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/interface.png" alt="L'interface d'igarchive : cinq étapes numérotées" width="620">
+  <img src="docs/interface.png" alt="L'interface d'igarchive : le compte, le dossier, un bouton" width="620">
 </p>
 
 ---
@@ -50,7 +50,7 @@ Puis lancez l'interface :
 igarchive
 ```
 
-Elle s'ouvre dans votre navigateur et vous guide en cinq étapes. C'est tout.
+Choisissez le compte, le dossier, appuyez sur **Télécharger**. C'est tout.
 
 > [!TIP]
 > **Demandez votre export Instagram tout de suite.** Il met plusieurs heures à 48 h à arriver,
@@ -124,10 +124,11 @@ Aucune source ne donne tout :
 `igarchive` lit les deux et les fusionne par identifiant de contenu. L'export peut arriver
 après coup : les fiches déjà écrites sont enrichies, sans rien retélécharger.
 
-**L'import est automatique.** Le bouton *Chercher tout seul* de l'étape 3 — ou `igarchive dyi`
-sans argument — trouve l'export dans vos téléchargements et sur votre bureau, lit toutes les
-parties s'il est découpé, puis reconstruit le catalogue dans la foulée. Seules les archives
-dont le nom évoque Instagram sont ouvertes : vos autres fichiers ne sont jamais inspectés.
+**L'import est automatique.** À chaque téléchargement, l'export est cherché dans vos
+téléchargements et sur votre bureau, lu en entier même s'il est découpé en plusieurs archives,
+et le catalogue est reconstruit dans la foulée. Vous n'avez rien à faire d'autre que le
+demander à Instagram. Seules les archives dont le nom évoque Instagram sont ouvertes : vos
+autres fichiers ne sont jamais inspectés. (`igarchive dyi` fait la même chose au terminal.)
 
 Tant que l'export n'a pas été importé, le catalogue affiche l'**ordre** d'enregistrement
 (« 3ᵉ de la liste ») plutôt qu'une date, et l'explique en tête de page. Une fois importé,
@@ -135,23 +136,34 @@ il affiche « enregistré le AAAA-MM-JJ ».
 
 ---
 
-## Les cinq étapes
+## L'interface
 
-| | Étape | Ce que vous faites |
-|---|---|---|
-| 1 | **Compte** | Connectez-vous à instagram.com dans Firefox, cliquez sur *Connecter*. Aucun mot de passe n'est enregistré. |
-| 2 | **Destination et rythme** | Choisissez le dossier de sauvegarde. Les pauses par défaut protègent votre compte : laissez-les. |
-| 3 | **Dates** | Déposez le `.zip` de l'export officiel quand il arrive. |
-| 4 | **Archivage** | *Lancer*. Vous pouvez fermer la page : la tâche continue. |
-| 5 | **Votre archive** | Ouvrez le catalogue, le dossier ou le CSV. |
+Deux réglages et un bouton.
+
+| | |
+|---|---|
+| **Compte** | La liste des comptes déjà connectés, avec un témoin *connecté* / *session expirée*. Sans compte, un lien vers la page de connexion Instagram et un bouton qui retrouve votre session dans vos navigateurs. |
+| **Dossier** | Où l'archive est écrite, et ce qu'elle contient déjà — nombre de contenus, taille, date du dernier archivage. |
+| **Télécharger** | Lance la sauvegarde. Pendant qu'elle tourne : les compteurs, le contenu en cours, un bouton pour arrêter. |
+
+Le reste est décidé pour vous, parce que personne n'a besoin de le régler : le rythme des
+requêtes, le format récupéré, l'ordre de parcours. L'export officiel est cherché et lu tout seul
+à chaque téléchargement.
+
+Un panneau *Détails et messages* garde le journal, les erreurs et la connexion par cookie, sans
+les mettre sur le chemin.
+
+**Tout ce qui a été retiré de l'interface reste dans la ligne de commande** — pauses, plafonds,
+commentaires, simulation. L'interface sert à sauvegarder sa bibliothèque ; le terminal sert à
+tout le reste.
 
 <details>
-<summary><b>Si la connexion automatique échoue</b></summary>
+<summary><b>Si la détection de session échoue</b></summary>
 
 <br>
 
-Dépliez *Une autre méthode* dans l'étape 1. Coller le cookie `sessionid` fonctionne **partout**,
-y compris sur une machine sans navigateur :
+Ouvrez *Détails et messages* et collez le cookie `sessionid` d'instagram.com. Cela fonctionne
+**partout**, y compris sur une machine sans navigateur :
 
 1. Dans votre navigateur, ouvrez les outils de développement sur instagram.com
 2. Application → Cookies → `instagram.com` → `sessionid`
@@ -288,7 +300,7 @@ Pensez à relancer `igarchive dyi` après chaque nouvel export officiel.
 |---|---|
 | « Aucun cookie sessionid » | Vous n'êtes pas connecté à instagram.com dans ce navigateur, ou vous visez le mauvais. |
 | « …demande browser_cookie3 » | `./install.sh --browsers`, ou utilisez Firefox, ou collez le cookie. |
-| « La session a expiré » | Reconnectez-vous à instagram.com, puis refaites l'étape 1. |
+| « La session a expiré » | Reconnectez-vous à instagram.com, puis appuyez sur « Connecter ce navigateur ». |
 | Erreur 429 | Normal sur une grosse bibliothèque. Attendez une à deux heures : la reprise est automatique. |
 | Beaucoup de `unavailable` | Contenus supprimés ou comptes passés en privé. Irrécupérable. |
 | Le port 8765 est pris | `igarchive ui --port 8766` |

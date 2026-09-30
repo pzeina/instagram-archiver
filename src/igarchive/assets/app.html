@@ -5,9 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>igarchive</title>
 <style>
-  /* Fiche d'archivage : marges, filets, colonnes libelle/valeur.
-     Aucune police distante : la charger ferait sortir une requete de la machine
-     a chaque ouverture, ce que cet outil promet de ne pas faire. */
+  /* Deux reglages, un bouton. Tout le reste est soit decide pour l'utilisateur,
+     soit range dans le panneau depliant. La ligne de commande garde le reste. */
   :root {
     --paper:#f7f8fa; --panel:#fff; --ink:#16181d; --ink-2:#565d6b; --ink-3:#8a909c;
     --rule:#e2e6ec; --rule-2:#cdd3dc; --field:#fff;
@@ -22,360 +21,194 @@
   } }
 
   * { box-sizing:border-box; }
-  html { -webkit-text-size-adjust:100%; }
+  [hidden] { display:none !important; }
   body { margin:0; background:var(--paper); color:var(--ink);
     font:15px/1.6 var(--sans); font-variant-numeric:tabular-nums; }
-  .sheet { max-width:41rem; margin:0 auto; padding:2.5rem 1.5rem 6rem; }
+  .sheet { max-width:34rem; margin:0 auto; padding:3rem 1.5rem 5rem; }
 
-  /* ---- en-tete : le bloc d'identification de la fiche ---- */
-  .masthead { display:flex; align-items:baseline; gap:1rem 1.5rem; flex-wrap:wrap; }
-  .masthead > div { flex:1 1 20rem; }
-  .build { margin-left:auto; }
-  .masthead h1 { font-size:1.5rem; line-height:1.2; letter-spacing:-.02em;
-    font-weight:600; margin:0; }
-  .masthead p { margin:.35rem 0 0; color:var(--ink-2); font-size:.875rem; max-width:30rem; }
-  .build { font:.75rem/1 var(--mono); color:var(--ink-3); white-space:nowrap; }
+  h1 { font-size:1.375rem; font-weight:600; letter-spacing:-.02em; margin:0; }
+  .sub { color:var(--ink-2); font-size:.875rem; margin:.3rem 0 0; }
+  .ver { float:right; font:.75rem/1.6 var(--mono); color:var(--ink-3); }
 
-  .ledger { display:grid; gap:.1rem .25rem; margin:1.5rem 0 0;
-    grid-template-columns:auto 1fr; font-size:.8125rem; }
-  .ledger dt { color:var(--ink-3); padding-right:1.25rem; }
-  .ledger dd { margin:0; font-family:var(--mono); font-size:.8125rem;
-    overflow-wrap:anywhere; }
-  .ledger dd.off { color:var(--ink-3); font-family:var(--sans); font-style:italic; }
+  .block { margin-top:2.25rem; padding-top:1.5rem; border-top:1px solid var(--rule); }
+  .key { font-size:.8125rem; color:var(--ink-2); margin:0 0 .5rem; }
 
-  /* ---- sections numerotees, separees par un filet et non par une boite ---- */
-  .step { padding-top:1.75rem; margin-top:1.75rem; border-top:1px solid var(--rule); }
-  .step > header { display:flex; align-items:baseline; gap:.75rem; }
-  .idx { font:.75rem/1.4 var(--mono); color:var(--ink-3); flex:none;
-    width:1.25rem; text-align:right; }
-  .step h2 { font-size:1rem; font-weight:600; letter-spacing:-.01em; margin:0; flex:1; }
-  .state { font-size:.8125rem; color:var(--ink-3); white-space:nowrap; }
+  .line { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+  select, input[type=text] { font:14px/1.45 var(--sans); color:var(--ink);
+    background:var(--field); border:1px solid var(--rule-2); border-radius:3px;
+    padding:.45rem .6rem; flex:1 1 14rem; min-width:0; }
+  input[type=text] { font-family:var(--mono); font-size:13px; }
+  textarea { width:100%; min-height:4rem; padding:.5rem .6rem; color:var(--ink);
+    background:var(--field); border:1px solid var(--rule-2); border-radius:3px;
+    font:12.5px/1.5 var(--mono); resize:vertical; }
+  :focus-visible { outline:2px solid var(--signal); outline-offset:1px; }
+
+  button { font:13.5px/1 var(--sans); color:var(--ink); background:var(--panel);
+    border:1px solid var(--rule-2); border-radius:3px; padding:.5rem .85rem;
+    cursor:pointer; white-space:nowrap; }
+  button:hover:not(:disabled) { border-color:var(--signal); color:var(--signal); }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+
+  .main { width:100%; margin-top:1.75rem; padding:.85rem 1rem; font-size:.9375rem;
+    font-weight:500; background:var(--signal); border-color:var(--signal);
+    color:var(--paper); }
+  .main:hover:not(:disabled) { filter:brightness(1.12); color:var(--paper); }
+
+  .state { display:inline-flex; align-items:center; gap:.4rem; font-size:.8125rem;
+    color:var(--ink-3); }
+  .state::before { content:""; width:.45rem; height:.45rem; border-radius:50%;
+    background:currentColor; flex:none; }
   .state.on { color:var(--signal); }
   .state.off { color:var(--bad); }
-  .state.busy::before { content:""; display:inline-block; width:.4rem; height:.4rem;
-    border-radius:50%; background:var(--signal); margin-right:.4rem;
-    vertical-align:.05rem; animation:beat 1.4s ease-in-out infinite; }
+  .state.busy::before { animation:beat 1.4s ease-in-out infinite; }
   @keyframes beat { 0%,100% { opacity:1 } 50% { opacity:.25 } }
   @media (prefers-reduced-motion: reduce) { .state.busy::before { animation:none } }
 
-  .lead { color:var(--ink-2); font-size:.875rem; margin:.5rem 0 1.25rem 2rem;
-    max-width:33rem; }
-  .lead a { color:var(--signal); }
-  .body { margin-left:2rem; }
-  @media (max-width:34rem) { .lead, .body { margin-left:0; } }
+  .facts { font-size:.8125rem; color:var(--ink-3); margin:.6rem 0 0; }
+  .facts b { font-family:var(--mono); font-weight:500; color:var(--ink-2); }
+  .hint { font-size:.8125rem; color:var(--ink-2); margin:.7rem 0 0; }
+  .hint a { color:var(--signal); }
 
-  /* ---- lignes libelle / champ ---- */
-  .row { display:grid; grid-template-columns:8.5rem 1fr; gap:.5rem 1rem;
-    align-items:center; padding:.3rem 0; }
-  .row > label, .row > .key { color:var(--ink-2); font-size:.8125rem; padding-top:.1rem; }
-  .ctrl { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; min-width:0; }
-  .ctrl > input[type=text], .ctrl > select { flex:1 1 11rem; min-width:0; }
-  @media (max-width:34rem) { .row { grid-template-columns:1fr; gap:.25rem; } }
+  .running { margin-top:1.25rem; }
+  .tally { display:flex; gap:1.5rem; flex-wrap:wrap; }
+  .tally div { font-size:.75rem; color:var(--ink-3); }
+  .tally b { display:block; font:1.125rem/1.3 var(--mono); font-weight:500; color:var(--ink); }
+  .now { margin-top:.7rem; font:.8125rem/1.5 var(--mono); color:var(--ink-2);
+    min-height:1.5em; overflow-wrap:anywhere; }
 
-  input[type=text], input[type=password], input[type=number], select, textarea {
-    font:14px/1.45 var(--sans); color:var(--ink); background:var(--field);
-    border:1px solid var(--rule-2); border-radius:3px; padding:.4rem .55rem; }
-  input[type=text], input[type=number] { font-family:var(--mono); font-size:13px; }
-  input[type=number] { width:4.5rem; }
-  textarea { width:100%; min-height:4.5rem; font:12.5px/1.5 var(--mono); resize:vertical; }
-  input[type=file] { font-size:.8125rem; color:var(--ink-2); max-width:100%; }
-  :focus-visible { outline:2px solid var(--signal); outline-offset:1px; }
-
-  button, .asbtn { display:inline-block; font:13.5px/1 var(--sans); color:var(--ink);
-    background:var(--panel);
-    border:1px solid var(--rule-2); border-radius:3px; padding:.45rem .8rem;
-    cursor:pointer; white-space:nowrap; }
-  button:hover:not(:disabled), .asbtn:hover { border-color:var(--signal); color:var(--signal); }
-  button.go { background:var(--signal); border-color:var(--signal); color:var(--paper);
-    font-weight:500; }
-  button.go:hover:not(:disabled) { filter:brightness(1.12); color:var(--paper); }
-  button:disabled { opacity:.4; cursor:not-allowed; }
-
-  .pick { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
-  .pick:focus-visible + label { outline:2px solid var(--signal); outline-offset:1px; }
-  .picked { font:12px/1.45 var(--mono); color:var(--ink-3); overflow-wrap:anywhere; }
-  .checks { display:flex; gap:1.25rem; flex-wrap:wrap; }
-  .check { display:flex; align-items:center; gap:.4rem; font-size:.875rem; }
-  .check input { accent-color:var(--signal); width:.9rem; height:.9rem; }
-  .actions { display:flex; gap:.5rem; flex-wrap:wrap; margin-top:1rem; }
-
-  .note { font-size:.8125rem; color:var(--ink-3); margin:.6rem 0 0; max-width:33rem; }
-  .note code { font-family:var(--mono); font-size:.75rem; }
-
-  details { margin-top:1rem; }
-  summary { font-size:.8125rem; color:var(--ink-2); cursor:pointer; width:fit-content; }
-  summary:hover { color:var(--signal); }
-  details[open] > summary { margin-bottom:.75rem; }
-  .sub { border-left:2px solid var(--rule); padding-left:1rem; margin-bottom:1rem; }
-
-  .msg { margin-top:.9rem; font-size:.8125rem; white-space:pre-wrap; padding-left:.75rem;
+  .msg { margin-top:1rem; font-size:.8125rem; white-space:pre-wrap; padding-left:.75rem;
     border-left:2px solid var(--rule-2); color:var(--ink-2); }
   .msg:empty { display:none; }
   .msg.ok { border-color:var(--signal); color:var(--signal); }
   .msg.bad { border-color:var(--bad); color:var(--bad); }
 
-  .problems { margin:0 0 1rem; padding-left:1.1rem; color:var(--warn); font-size:.8125rem; }
-  .problems:empty { display:none; }
-
-  /* ---- compteurs : valeurs en chasse fixe, libelles discrets ---- */
-  .tally { display:flex; gap:1.5rem; flex-wrap:wrap; margin-top:1rem; }
-  .tally div { font-size:.75rem; color:var(--ink-3); }
-  .tally b { display:block; font:1.125rem/1.3 var(--mono); font-weight:500; color:var(--ink); }
-  .now { margin-top:.9rem; font:.8125rem/1.5 var(--mono); color:var(--ink-2);
-    min-height:1.5em; overflow-wrap:anywhere; }
-
-  .log { margin-top:.9rem; max-height:11rem; overflow:auto; padding:.6rem .75rem;
-    border:1px solid var(--rule); border-radius:3px; background:var(--field);
-    font:11.5px/1.7 var(--mono); color:var(--ink-3); white-space:pre-wrap; }
+  details { margin-top:2.25rem; padding-top:1.25rem; border-top:1px solid var(--rule); }
+  summary { font-size:.8125rem; color:var(--ink-2); cursor:pointer; width:fit-content; }
+  summary:hover { color:var(--signal); }
+  .drawer { margin-top:1.25rem; }
+  .drawer h3 { font-size:.8125rem; font-weight:600; color:var(--ink-2);
+    margin:1.5rem 0 .5rem; }
+  .drawer h3:first-child { margin-top:0; }
+  .log { max-height:12rem; overflow:auto; padding:.6rem .75rem; border:1px solid var(--rule);
+    border-radius:3px; background:var(--field); font:11.5px/1.7 var(--mono);
+    color:var(--ink-3); white-space:pre-wrap; }
   .log:empty { display:none; }
-
-  .chips { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.9rem; }
-  .chips:empty { display:none; }
-  .chip { font:.75rem/1.5 var(--sans); padding:.1rem .5rem; border-radius:2px;
-    background:var(--signal-soft); color:var(--signal); }
-  .chip i { font-style:normal; font-family:var(--mono); opacity:.65;
-    margin-left:.4rem; font-size:.7rem; }
-  .chip.none { background:transparent; border:1px solid var(--rule); color:var(--ink-3); }
+  .log:empty + .none { display:block; }
+  .none { display:none; font-size:.8125rem; color:var(--ink-3); }
+  .foot { margin-top:2.5rem; font-size:.75rem; color:var(--ink-3); }
 </style>
 </head>
 <body>
 <main class="sheet">
 
-<header class="masthead">
-  <div>
-    <h1>igarchive</h1>
-    <p>Sauvegarde locale de vos contenus Instagram enregistrés : les vidéos, les
-       descriptions et les dates.</p>
+<span class="ver" id="ver"></span>
+<h1>igarchive</h1>
+<p class="sub">Sauvegarde locale de vos contenus Instagram enregistrés.</p>
+
+<!-- compte ------------------------------------------------------------ -->
+<section class="block">
+  <p class="key">Compte Instagram</p>
+
+  <div class="line" id="have-session" hidden>
+    <select id="account"></select>
+    <span class="state" id="st-account">…</span>
   </div>
-  <span class="build"><span id="pill-version">…</span> <span id="pill-platform"></span></span>
-</header>
+  <p class="hint" id="reconnect-hint" hidden>
+    Cette session n'est plus valable. Reconnectez-vous sur
+    <a href="https://www.instagram.com/" target="_blank" rel="noopener">instagram.com</a>,
+    puis revenez ici.
+  </p>
 
-<dl class="ledger">
-  <dt>Compte</dt><dd id="led-account" class="off">aucune session</dd>
-  <dt>Destination</dt><dd id="led-path">…</dd>
-  <dt>Archivé</dt><dd id="led-count">…</dd>
-</dl>
-
-<!-- 1 ---------------------------------------------------------------- -->
-<section class="step">
-  <header><span class="idx">1</span><h2>Compte Instagram</h2>
-    <span class="state" id="st-1"></span></header>
-  <p class="lead">Connectez-vous à instagram.com dans Firefox, puis reprenez ses cookies.
-     Aucun mot de passe n'est enregistré.</p>
-  <div class="body">
-    <div class="row">
-      <label for="username">Identifiant</label>
-      <div class="ctrl"><input type="text" id="username" placeholder="votre_pseudo"
-        autocomplete="username"></div>
-    </div>
-    <div class="row">
-      <label for="browser">Navigateur</label>
-      <div class="ctrl">
-        <select id="browser"></select>
-        <button class="go" id="btn-connect">Connecter</button>
-      </div>
-    </div>
-    <p class="note">Chrome, Safari, Edge et Brave demandent le paquet
-       <code>browser-cookie3</code>.</p>
-
-    <details>
-      <summary>Une autre méthode, si la lecture automatique échoue</summary>
-      <div class="sub">
-        <label for="cookie" class="note" style="margin:0 0 .4rem">Coller le cookie
-          <code>sessionid</code>, ou l'en-tête Cookie entier</label>
-        <textarea id="cookie" placeholder="sessionid=12345%3AAbCdEf%3A7…"></textarea>
-        <p class="note">Outils de développement → Application → Cookies → instagram.com →
-           <code>sessionid</code>. Fonctionne partout, même sans navigateur local.</p>
-        <div class="actions"><button id="btn-cookie">Utiliser ce cookie</button></div>
-      </div>
-      <div class="sub">
-        <div class="row">
-          <label for="pw-user">Identifiant</label>
-          <div class="ctrl"><input type="text" id="pw-user" autocomplete="username"></div>
-        </div>
-        <div class="row">
-          <label for="pw-pass">Mot de passe</label>
-          <div class="ctrl">
-            <input type="password" id="pw-pass" autocomplete="current-password">
-            <button id="btn-password">Se connecter</button>
-          </div>
-        </div>
-        <p class="note">Transmis à Instagram, jamais écrit sur le disque. La double
-           authentification passe par le cookie ci-dessus.</p>
-      </div>
-      <div class="actions"><button id="btn-forget">Oublier la session</button></div>
-    </details>
-    <div class="msg" id="msg-session"></div>
+  <div id="no-session" hidden>
+    <p class="hint" style="margin-top:0">Aucun compte connecté. Ouvrez
+      <a href="https://www.instagram.com/accounts/login/" target="_blank"
+         rel="noopener">la page de connexion Instagram</a>, connectez-vous,
+      puis revenez appuyer sur le bouton ci-dessous.</p>
   </div>
+
+  <div class="line" style="margin-top:.7rem">
+    <button id="btn-connect">Connecter ce navigateur</button>
+  </div>
+  <div class="msg" id="msg-session"></div>
 </section>
 
-<!-- 2 ---------------------------------------------------------------- -->
-<section class="step">
-  <header><span class="idx">2</span><h2>Destination et rythme</h2>
-    <span class="state" id="st-2"></span></header>
-  <p class="lead">Les pauses entre deux contenus sont longues à dessein : c'est ce qui
-     évite qu'Instagram limite le compte. Comptez une heure pour 500 contenus.</p>
-  <div class="body">
-    <div class="row">
-      <label for="archive_dir">Dossier</label>
-      <div class="ctrl"><input type="text" id="archive_dir" placeholder="~/InstagramArchive"></div>
-    </div>
-    <div class="row">
-      <span class="key">Pause</span>
-      <div class="ctrl">
-        <input type="number" id="sleep_min" min="1" step="0.5" aria-label="pause minimale">
-        <span class="note" style="margin:0">à</span>
-        <input type="number" id="sleep_max" min="1" step="0.5" aria-label="pause maximale">
-        <span class="note" style="margin:0">secondes</span>
-      </div>
-    </div>
-    <div class="row">
-      <label for="limit_per_run">Plafond</label>
-      <div class="ctrl"><input type="number" id="limit_per_run" min="0" step="10">
-        <span class="note" style="margin:0">contenus par passe — 0 pour tout</span></div>
-    </div>
-    <div class="row">
-      <label for="stop_after_known">Arrêt</label>
-      <div class="ctrl"><input type="number" id="stop_after_known" min="0" step="5">
-        <span class="note" style="margin:0">après N déjà connus — 20 pour une mise à jour</span></div>
-    </div>
-    <div class="row">
-      <span class="key">Récupérer</span>
-      <div class="checks">
-        <label class="check"><input type="checkbox" id="download_videos"> vidéos</label>
-        <label class="check"><input type="checkbox" id="download_thumbnails"> vignettes</label>
-        <label class="check"><input type="checkbox" id="download_comments"> commentaires</label>
-      </div>
-    </div>
-    <div class="actions"><button class="go" id="btn-save">Enregistrer</button></div>
-    <div class="msg" id="msg-config"></div>
+<!-- archive ----------------------------------------------------------- -->
+<section class="block">
+  <p class="key"><label for="archive_dir">Dossier de sauvegarde</label></p>
+  <div class="line">
+    <input type="text" id="archive_dir" placeholder="~/InstagramArchive">
+    <button id="btn-folder">Ouvrir</button>
   </div>
+  <p class="facts" id="facts">…</p>
 </section>
 
-<!-- 3 ---------------------------------------------------------------- -->
-<section class="step">
-  <header><span class="idx">3</span><h2>Dates et collections</h2>
-    <span class="state" id="st-3"></span></header>
-  <p class="lead">Instagram n'expose pas la date à laquelle vous avez enregistré un contenu,
-     ni vos collections. Son export officiel, si. Demandez-le sur
-     <a href="https://accountscenter.instagram.com/info_and_permissions/dyi/" target="_blank"
-        rel="noopener">accountscenter.instagram.com</a> — format JSON, en cochant
-     « Éléments enregistrés ». Il met jusqu'à 48 h ; l'archivage n'a pas à l'attendre.</p>
-  <div class="body">
-    <div class="row">
-      <label for="export-file">Fichier reçu</label>
-      <div class="ctrl">
-        <input type="file" id="export-file" accept=".zip" class="pick">
-        <label class="asbtn" for="export-file">Choisir…</label>
-        <span class="picked" id="picked">aucun fichier</span>
-        <button id="btn-upload">Lire</button>
-      </div>
-    </div>
-    <div class="actions">
-      <button id="btn-auto">Chercher dans les téléchargements</button>
-    </div>
-    <p class="note">Un export volumineux arrive découpé en plusieurs archives : elles sont
-       toutes lues. Seules celles dont le nom évoque Instagram sont ouvertes.</p>
-    <div class="chips" id="colls"></div>
+<!-- action ------------------------------------------------------------ -->
+<section>
+  <button class="main" id="btn-start">Télécharger ma bibliothèque</button>
 
-    <details>
-      <summary>Indiquer un chemin</summary>
-      <div class="sub">
-        <div class="row">
-          <label for="export-path">Chemin</label>
-          <div class="ctrl"><input type="text" id="export-path"
-            placeholder="~/Downloads/instagram-export.zip">
-            <button id="btn-path">Lire</button></div>
-        </div>
-      </div>
-    </details>
-    <div class="msg" id="msg-dyi"></div>
-  </div>
-</section>
-
-<!-- 4 ---------------------------------------------------------------- -->
-<section class="step">
-  <header><span class="idx">4</span><h2>Archivage</h2>
-    <span class="state" id="st-4"></span></header>
-  <p class="lead">Reprend toujours où il s'est arrêté. Vous pouvez fermer cette page :
-     la tâche continue tant que le programme tourne dans le terminal.</p>
-  <div class="body">
-    <ul class="problems" id="problems"></ul>
-    <div class="actions">
-      <button class="go" id="btn-start">Lancer l'archivage</button>
-      <button id="btn-dry">Simuler</button>
-      <button id="btn-stop" disabled>Arrêter</button>
-    </div>
+  <div class="running" id="running" hidden>
     <div class="tally">
-      <div><b id="p-done">0</b>archivés</div>
-      <div><b id="p-skipped">0</b>déjà connus</div>
+      <div><b id="p-done">0</b>enregistrés</div>
+      <div><b id="p-skipped">0</b>déjà là</div>
       <div><b id="p-failed">0</b>en échec</div>
-      <div><b id="p-scanned">0</b>parcourus</div>
     </div>
-    <div class="now" id="current"></div>
-    <div class="log" id="log"></div>
-    <div class="msg" id="msg-fetch"></div>
+    <p class="now" id="current"></p>
+    <div class="line"><button id="btn-stop">Arrêter</button></div>
   </div>
+
+  <div class="line" id="done-actions" style="margin-top:1rem" hidden>
+    <button id="btn-html">Ouvrir le catalogue</button>
+  </div>
+  <div class="msg" id="msg"></div>
+  <p class="hint" id="export-note" hidden></p>
 </section>
 
-<!-- 5 ---------------------------------------------------------------- -->
-<section class="step">
-  <header><span class="idx">5</span><h2>Votre archive</h2></header>
-  <p class="lead">Le catalogue se reconstruit à partir des fiches déjà enregistrées :
-     aucun téléchargement n'est refait.</p>
-  <div class="body">
-    <div class="tally">
-      <div><b id="s-archived">0</b>contenus</div>
-      <div><b id="s-size">0</b>sur le disque</div>
-      <div><b id="s-dates">0</b>dates connues</div>
-      <div><b id="s-gone">0</b>indisponibles</div>
+<!-- panneau dépliant --------------------------------------------------- -->
+<details>
+  <summary>Détails et messages</summary>
+  <div class="drawer">
+    <h3>Journal</h3>
+    <div class="log" id="log"></div>
+    <p class="none">Rien pour le moment.</p>
+
+    <h3>Se connecter autrement</h3>
+    <p class="hint" style="margin-top:0">Si la détection échoue, collez le cookie
+       <code>sessionid</code> d'instagram.com (outils de développement → Application →
+       Cookies).</p>
+    <textarea id="cookie" placeholder="sessionid=…"></textarea>
+    <div class="line" style="margin-top:.5rem">
+      <button id="btn-cookie">Utiliser ce cookie</button>
+      <button id="btn-forget">Oublier cette session</button>
     </div>
-    <div class="actions">
-      <button class="go" id="btn-html">Ouvrir le catalogue</button>
-      <button id="btn-folder">Ouvrir le dossier</button>
-      <button id="btn-csv">Ouvrir le CSV</button>
-      <button id="btn-build">Reconstruire</button>
-    </div>
-    <p class="note" id="archive-path"></p>
-    <div class="msg" id="msg-catalog"></div>
+    <div class="msg" id="msg-cookie"></div>
+
+    <h3>Emplacement des fichiers</h3>
+    <p class="hint" style="margin-top:0" id="paths"></p>
   </div>
-</section>
+</details>
+
+<p class="foot">Tout reste sur cette machine. Pour les réglages fins — rythme, plafonds,
+   commentaires — utilisez <code>igarchive --help</code> au terminal.</p>
 
 </main>
 
 <script>
 const TOKEN = "__TOKEN__";
 const $ = (id) => document.getElementById(id);
+let running = false, pathTouched = false;
 
-const CONFIG_FIELDS = ["username","browser","archive_dir","sleep_min","sleep_max",
-  "limit_per_run","stop_after_known","download_videos","download_thumbnails",
-  "download_comments"];
-const CHECKBOXES = ["download_videos","download_thumbnails","download_comments"];
-
-let touched = new Set();
-let running = false;
-
-function say(target, text, kind) {
-  const box = $(target);
+function say(id, text, kind) {
+  const box = $(id);
   box.textContent = text || "";
   box.className = "msg" + (kind ? " " + kind : "");
-}
-
-function mark(id, text, kind) {
-  const el = $(id);
-  el.textContent = text || "";
-  el.className = "state" + (kind ? " " + kind : "");
 }
 
 async function api(path, body) {
   const init = { method: body === undefined ? "GET" : "POST",
                  headers: { "X-IG-Token": TOKEN } };
-  if (body !== undefined && !(body instanceof Blob)) {
+  if (body !== undefined) {
     init.headers["Content-Type"] = "application/json";
     init.body = JSON.stringify(body);
-  } else if (body instanceof Blob) {
-    init.headers["Content-Type"] = "application/octet-stream";
-    init.body = body;
   }
   const response = await fetch(path, init);
   let payload;
@@ -394,56 +227,86 @@ function bytes(n) {
   return (i === 0 ? v.toFixed(0) : v.toFixed(1)) + " " + units[i];
 }
 
+function whenAgo(iso) {
+  if (!iso) return null;
+  const then = new Date(iso);
+  if (isNaN(then)) return null;
+  const days = Math.floor((Date.now() - then) / 86400000);
+  const date = then.toLocaleDateString("fr-FR",
+    { day: "numeric", month: "long", year: "numeric" });
+  if (days <= 0) return "aujourd'hui";
+  if (days === 1) return "hier";
+  if (days < 30) return "il y a " + days + " jours";
+  return "le " + date;
+}
+
 function render(state) {
-  $("pill-version").textContent = "v" + state.version;
-  $("pill-platform").textContent = state.platform;
+  $("ver").textContent = "v" + state.version;
 
   const s = state.session, sum = state.summary, job = state.job, pr = job.progress;
+  const sessions = state.sessions || [];
   running = job.running;
 
-  // en-tete : l'etat de l'archive en trois lignes
-  const account = $("led-account");
-  account.textContent = s.valid ? s.account : (s.exists ? "session expirée" : "aucune session");
-  account.className = s.valid ? "" : "off";
-  $("led-path").textContent = sum.archive_dir;
-  $("led-count").textContent = sum.archived
-    ? sum.archived + " contenus, " + bytes(sum.bytes)
-    : "rien encore";
+  // --- compte ---
+  const have = sessions.length > 0;
+  $("have-session").hidden = !have;
+  $("no-session").hidden = have;
+  $("reconnect-hint").hidden = !(have && s.exists && !s.valid);
+  $("btn-connect").textContent = have
+    ? "Connecter un autre compte" : "Connecter ce navigateur";
 
-  // etat de chaque etape
-  // « a faire » n'est pas une erreur : le rouge est reserve a ce qui bloque.
-  mark("st-1", s.valid ? "connecté" : (s.exists ? "session expirée" : "à faire"),
-       s.valid ? "on" : (s.exists ? "off" : ""));
-  const settingsIssues = (state.problems_detail || []).filter((p) => p.step === 2);
-  mark("st-2", settingsIssues.length ? "à corriger" : "prêt",
-       settingsIssues.length ? "off" : "");
-  mark("st-3", sum.known_dates ? sum.known_dates + " dates connues" : "en attente de l'export",
-       sum.known_dates ? "on" : "");
-  mark("st-4", running ? "en cours" : (sum.archived ? "à jour" : "à faire"),
-       running ? "busy" : (sum.archived ? "on" : ""));
-
-  const select = $("browser");
-  if (select.options.length !== state.browsers.length) {
-    select.innerHTML = state.browsers
-      .map((b) => '<option value="' + b + '">' + b + "</option>").join("");
+  const select = $("account");
+  const wanted = sessions.join("|");
+  if (select.dataset.filled !== wanted) {
+    select.innerHTML = sessions
+      .map((n) => '<option value="' + n + '">' + n + "</option>").join("");
+    select.dataset.filled = wanted;
   }
+  if (state.config.username) select.value = state.config.username;
 
-  for (const key of CONFIG_FIELDS) {
-    const el = $(key);
-    if (!el || touched.has(key) || document.activeElement === el) continue;
-    if (CHECKBOXES.includes(key)) el.checked = !!state.config[key];
-    else el.value = state.config[key];
+  const st = $("st-account");
+  st.textContent = s.valid ? "connecté" : (s.exists ? "session expirée" : "non connecté");
+  st.className = "state " + (s.valid ? "on" : "off");
+
+  // --- archive ---
+  if (!pathTouched && document.activeElement !== $("archive_dir")) {
+    $("archive_dir").value = state.config.archive_dir;
   }
+  const last = whenAgo(sum.last_archived);
+  $("facts").innerHTML = sum.archived
+    ? "<b>" + sum.archived + "</b> contenus, <b>" + bytes(sum.bytes) + "</b>" +
+      (last ? " — dernier archivage " + last : "")
+    : (sum.exists ? "Dossier vide." : "Le dossier sera créé au premier téléchargement.");
 
-  $("problems").innerHTML = (state.problems || [])
-    .map((p) => "<li>" + p.replace(/</g, "&lt;") + "</li>").join("");
+  // --- action ---
+  const blocked = (state.problems || []).length > 0;
+  $("btn-start").disabled = running || blocked;
+  $("btn-start").textContent = running ? "Téléchargement en cours…"
+    : (sum.archived ? "Mettre à jour ma bibliothèque" : "Télécharger ma bibliothèque");
+  $("running").hidden = !running && !pr.done && !pr.failed;
+  $("btn-stop").disabled = !running;
+  $("done-actions").hidden = !sum.archived;
 
   $("p-done").textContent = pr.done;
   $("p-skipped").textContent = pr.skipped;
   $("p-failed").textContent = pr.failed;
-  $("p-scanned").textContent = pr.scanned;
   $("current").textContent = pr.current || pr.message || "";
 
+  if (pr.error) say("msg", pr.error, "bad");
+  else if (blocked && !s.valid) say("msg", "Connectez un compte pour commencer.", null);
+  else if (pr.finished && pr.phase === "termine") say("msg", "Terminé.", "ok");
+  else if (!running) say("msg", "");
+
+  const missing = sum.archived - (sum.known_dates || 0);
+  $("export-note").hidden = !(sum.archived && missing > 0);
+  $("export-note").innerHTML = "Les dates d'enregistrement et vos collections ne " +
+    "figurent que dans l'export officiel d'Instagram. " +
+    '<a href="https://accountscenter.instagram.com/info_and_permissions/dyi/" ' +
+    'target="_blank" rel="noopener">Demandez-le</a> (format JSON, « Éléments ' +
+    "enregistrés ») : il sera lu tout seul au prochain téléchargement, une fois " +
+    "dans vos téléchargements.";
+
+  // --- panneau ---
   const log = $("log");
   const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
   const text = (job.log || []).join("\n");
@@ -451,43 +314,13 @@ function render(state) {
     log.textContent = text;
     if (atBottom) log.scrollTop = log.scrollHeight;
   }
-
-  if (pr.error) say("msg-fetch", pr.error, "bad");
-  else if (pr.finished && pr.phase === "termine") say("msg-fetch", "Terminé.", "ok");
-
-  $("btn-start").disabled = running;
-  $("btn-dry").disabled = running;
-  $("btn-stop").disabled = !running;
-
-  $("s-archived").textContent = sum.archived;
-  $("s-size").textContent = bytes(sum.bytes);
-  $("s-dates").textContent = sum.known_dates;
-  $("s-gone").textContent = sum.unavailable;
-  $("archive-path").textContent = sum.archive_dir + (sum.exists ? "" : " — pas encore créé");
-
-  const colls = sum.collections || {};
-  const names = Object.keys(colls);
-  $("colls").innerHTML = names.length
-    ? names.map((n) => '<span class="chip">' + n.replace(/</g, "&lt;") +
-        "<i>" + colls[n] + "</i></span>").join("") +
-      (sum.uncategorised ? '<span class="chip none">sans collection<i>' +
-        sum.uncategorised + "</i></span>" : "")
-    : "";
+  $("paths").textContent = "Archive : " + sum.archive_dir +
+    "\nRéglages : " + state.config_file;
 }
 
 async function refresh() {
   try { render(await api("/api/state")); }
-  catch (e) { say("msg-fetch", "Le serveur ne répond plus : " + e.message, "bad"); }
-}
-
-function configFromForm() {
-  const out = {};
-  for (const key of CONFIG_FIELDS) {
-    const el = $(key);
-    if (!el) continue;
-    out[key] = CHECKBOXES.includes(key) ? el.checked : el.value;
-  }
-  return out;
+  catch (e) { say("msg", "Le serveur ne répond plus : " + e.message, "bad"); }
 }
 
 function wire(id, handler) {
@@ -500,109 +333,60 @@ function wire(id, handler) {
   });
 }
 
-for (const key of CONFIG_FIELDS) {
-  const el = $(key);
-  if (el) el.addEventListener("input", () => touched.add(key));
-}
-
-$("export-file").addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  $("picked").textContent = file ? file.name + " · " + bytes(file.size) : "aucun fichier";
+$("archive_dir").addEventListener("input", () => { pathTouched = true; });
+$("archive_dir").addEventListener("change", async () => {
+  try {
+    await api("/api/config", { archive_dir: $("archive_dir").value });
+    pathTouched = false;
+    say("msg", "Dossier enregistré.", "ok");
+  } catch (e) { say("msg", e.message, "bad"); }
+  refresh();
 });
 
-wire("btn-save", async () => {
-  try {
-    await api("/api/config", configFromForm());
-    touched.clear();
-    say("msg-config", "Réglages enregistrés.", "ok");
-  } catch (e) { say("msg-config", e.message, "bad"); }
+$("account").addEventListener("change", async () => {
+  try { await api("/api/session/use", { username: $("account").value }); }
+  catch (e) { say("msg-session", e.message, "bad"); }
+  refresh();
 });
 
 wire("btn-connect", async () => {
-  say("msg-session", "Lecture des cookies, puis vérification auprès d'Instagram…");
-  try {
-    await api("/api/config", configFromForm());
-    touched.clear();
-    const r = await api("/api/session/browser",
-      { browser: $("browser").value, username: $("username").value });
-    say("msg-session", r.message, "ok");
-  } catch (e) { say("msg-session", e.message, "bad"); }
+  say("msg-session", "Recherche d'une session dans vos navigateurs…");
+  try { say("msg-session", (await api("/api/session/auto", {})).message, "ok"); }
+  catch (e) { say("msg-session", e.message, "bad"); }
 });
 
 wire("btn-cookie", async () => {
   try {
-    const r = await api("/api/session/cookie",
-      { cookie: $("cookie").value, username: $("username").value });
+    const r = await api("/api/session/cookie", { cookie: $("cookie").value });
     $("cookie").value = "";
-    say("msg-session", r.message, "ok");
-  } catch (e) { say("msg-session", e.message, "bad"); }
-});
-
-wire("btn-password", async () => {
-  try {
-    const r = await api("/api/session/password",
-      { username: $("pw-user").value, password: $("pw-pass").value });
-    $("pw-pass").value = "";
-    say("msg-session", r.message, "ok");
-  } catch (e) { say("msg-session", e.message, "bad"); }
+    say("msg-cookie", r.message, "ok");
+  } catch (e) { say("msg-cookie", e.message, "bad"); }
 });
 
 wire("btn-forget", async () => {
-  try { say("msg-session", (await api("/api/session/forget", {})).message, "ok"); }
-  catch (e) { say("msg-session", e.message, "bad"); }
-});
-
-wire("btn-upload", async () => {
-  const file = $("export-file").files[0];
-  if (!file) { say("msg-dyi", "Choisissez d'abord le fichier .zip.", "bad"); return; }
-  say("msg-dyi", "Envoi et lecture de " + file.name + " (" + bytes(file.size) + ")…");
-  try { say("msg-dyi", (await api("/api/dyi/upload", file)).message, "ok"); }
-  catch (e) { say("msg-dyi", e.message, "bad"); }
-});
-
-wire("btn-auto", async () => {
-  say("msg-dyi", "Recherche dans les téléchargements et sur le bureau…");
-  try { say("msg-dyi", (await api("/api/dyi/auto", {})).message, "ok"); }
-  catch (e) { say("msg-dyi", e.message, "bad"); }
-});
-
-wire("btn-path", async () => {
-  try { say("msg-dyi", (await api("/api/dyi", { path: $("export-path").value })).message, "ok"); }
-  catch (e) { say("msg-dyi", e.message, "bad"); }
+  try { say("msg-cookie", (await api("/api/session/forget", {})).message, "ok"); }
+  catch (e) { say("msg-cookie", e.message, "bad"); }
 });
 
 wire("btn-start", async () => {
-  try {
-    await api("/api/config", configFromForm());
-    touched.clear();
-    say("msg-fetch", (await api("/api/fetch/start", { dry_run: false })).message, "ok");
-  } catch (e) { say("msg-fetch", e.message, "bad"); }
-});
-
-wire("btn-dry", async () => {
-  try {
-    await api("/api/config", configFromForm());
-    touched.clear();
-    say("msg-fetch", (await api("/api/fetch/start", { dry_run: true })).message, "ok");
-  } catch (e) { say("msg-fetch", e.message, "bad"); }
+  try { say("msg", (await api("/api/fetch/start", { dry_run: false })).message, "ok"); }
+  catch (e) { say("msg", e.message, "bad"); }
 });
 
 wire("btn-stop", async () => {
-  try { say("msg-fetch", (await api("/api/fetch/cancel", {})).message, "ok"); }
-  catch (e) { say("msg-fetch", e.message, "bad"); }
+  try { say("msg", (await api("/api/fetch/cancel", {})).message, "ok"); }
+  catch (e) { say("msg", e.message, "bad"); }
 });
 
-wire("btn-build", async () => {
-  try { say("msg-catalog", (await api("/api/catalog", {})).message, "ok"); }
-  catch (e) { say("msg-catalog", e.message, "bad"); }
+wire("btn-html", async () => {
+  try { await api("/api/open", { what: "html" }); }
+  catch (e) { say("msg", e.message, "bad"); }
 });
 
-for (const [id, what] of [["btn-html","html"],["btn-folder","archive"],["btn-csv","csv"]]) {
-  wire(id, async () => {
-    try { say("msg-catalog", (await api("/api/open", { what })).message, "ok"); }
-    catch (e) { say("msg-catalog", e.message, "bad"); }
-  });
-}
+wire("btn-folder", async () => {
+  try { await api("/api/open", { what: "archive" }); }
+  catch (e) { say("msg", e.message, "bad"); }
+});
 
 refresh();
 setInterval(() => refresh(), 1500);

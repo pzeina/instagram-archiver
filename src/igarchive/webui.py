@@ -120,6 +120,25 @@ def action_session_browser(state: AppState, body: dict) -> dict:
             "message": f"Session ouverte pour « {account} »."}
 
 
+def action_session_auto(state: AppState, body: dict) -> dict:
+    """Connecte sans rien demander : le navigateur est trouve, pas choisi."""
+    account, path = session.open_auto(str(body.get("username") or ""))
+    state.config.username = account
+    state.config.save()
+    return {"ok": True, "account": account, "file": str(path),
+            "message": f"Connecte au compte {account}."}
+
+
+def action_session_use(state: AppState, body: dict) -> dict:
+    """Bascule sur une session deja enregistree."""
+    username = str(body.get("username") or "").strip()
+    if username not in session.list_sessions():
+        raise ValueError(f"Aucune session enregistree pour {username}.")
+    state.config.username = username
+    state.config.save()
+    return {"ok": True, "account": username, "message": f"Compte actif : {username}."}
+
+
 def action_session_cookie(state: AppState, body: dict) -> dict:
     blob = str(body.get("cookie") or "")
     username = str(body.get("username") or state.config.username)
@@ -216,6 +235,16 @@ def action_fetch_start(state: AppState, body: dict) -> dict:
     runner = state.runner
 
     def work(cancel: threading.Event, report: Callable) -> None:
+        # L'export officiel est la seule source des dates d'enregistrement et des
+        # collections. Le chercher ici evite d'en faire une etape de plus a suivre.
+        try:
+            found = dyi.find_exports()
+            if found:
+                result = ingest_exports(state, found)
+                runner.log(f"Export officiel lu : {result['message']}")
+        except (dyi.ExportError, OSError, ValueError) as exc:
+            runner.log(f"Export officiel ignore : {exc}")
+
         last = {"done": -1, "failed": -1, "skipped": -1}
 
         def on_progress(progress: fetch.Progress) -> None:
@@ -265,6 +294,8 @@ def action_open(state: AppState, body: dict) -> dict:
 ACTIONS: dict[str, Callable[[AppState, dict], dict]] = {
     "/api/config": action_save_config,
     "/api/session/browser": action_session_browser,
+    "/api/session/auto": action_session_auto,
+    "/api/session/use": action_session_use,
     "/api/session/cookie": action_session_cookie,
     "/api/session/password": action_session_password,
     "/api/session/forget": action_session_forget,

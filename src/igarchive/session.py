@@ -189,6 +189,35 @@ def open_interactive(username: str, password: str | None = None) -> tuple[str, P
     return actual, _persist(loader, actual)
 
 
+def open_auto(username: str = "") -> tuple[str, Path]:
+    """Ouvre une session sans rien demander : on essaie chaque navigateur.
+
+    Choisir son navigateur dans une liste n'apprend rien a personne. On essaie
+    Firefox d'abord, puis les autres s'ils sont lisibles, et on ne parle que du
+    resultat. Si tout echoue, le message rassemble ce que chacun a repondu.
+    """
+    troubles: list[str] = []
+    for browser in SUPPORTED_BROWSERS:
+        try:
+            cookies = browser_cookies(browser)
+        except SessionError as exc:
+            troubles.append(f"{browser} : {str(exc).splitlines()[0]}")
+            continue
+        if "sessionid" not in cookies:
+            troubles.append(f"{browser} : aucune session Instagram ouverte")
+            continue
+        try:
+            return open_from_cookies(cookies, username)
+        except SessionError as exc:
+            troubles.append(f"{browser} : {str(exc).splitlines()[0]}")
+
+    raise SessionError(
+        "Aucune session Instagram trouvee dans vos navigateurs.\n"
+        "Connectez-vous sur instagram.com, puis reessayez.\n\n"
+        + "\n".join(troubles)
+    )
+
+
 def load(username: str) -> Instaloader:
     """Recharge une session deja ouverte. Leve SessionError si elle manque."""
     target = paths.sessions_dir() / f"{username}.session"
