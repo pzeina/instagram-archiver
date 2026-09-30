@@ -221,12 +221,29 @@ def open_auto(username: str = "") -> tuple[str, Path]:
     )
 
 
+def _hush(loader: Instaloader) -> Instaloader:
+    """Empeche instaloader d'ecrire ses erreurs sur la sortie d'erreur.
+
+    Sa methode error() imprime sans tenir compte de « quiet », si bien qu'un
+    compte limite par Instagram remplissait le terminal du meme message. Les
+    messages restent collectes dans error_log, ou le code les lit pour
+    distinguer une session perimee d'une verification impossible.
+    """
+    context = loader.context
+
+    def collect(msg, repeat_at_end=True):  # noqa: ARG001 -- signature imposee
+        context.error_log.append(msg)
+
+    context.error = collect
+    return loader
+
+
 def load(username: str) -> Instaloader:
     """Recharge une session deja ouverte. Leve SessionError si elle manque."""
     target = paths.sessions_dir() / f"{username}.session"
     if not target.exists():
         raise SessionError(f"Aucune session enregistree pour « {username} ».")
-    loader = Instaloader(quiet=True)
+    loader = _hush(Instaloader(quiet=True))
     try:
         loader.load_session_from_file(username, str(target))
     except (OSError, InstaloaderException) as exc:
@@ -238,6 +255,9 @@ def load(username: str) -> Instaloader:
 # secondes et demie : sans garde-fou, afficher un temoin coutait des milliers de
 # requetes par heure, ce qui est precisement le rythme qui fait limiter un compte.
 STATUS_TTL = 120.0
+# Quand Instagram refuse de repondre -- « feedback_required » -- insister ne peut
+# qu'entretenir la limitation. On espace beaucoup plus jusqu'a ce qu'elle passe.
+UNREACHABLE_TTL = 900.0
 _status_cache: "dict[str, tuple[float, dict]]" = {}
 _status_lock = threading.Lock()
 
@@ -297,8 +317,11 @@ def status(username: str, *, force: bool = False, recover: bool = True) -> dict:
     now = time.monotonic()
     with _status_lock:
         cached = _status_cache.get(username)
-        if cached and not force and now - cached[0] < STATUS_TTL:
-            return cached[1]
+        if cached and not force:
+            age = now - cached[0]
+            ttl = STATUS_TTL if cached[1].get("reachable", True) else UNREACHABLE_TTL
+            if age < ttl:
+                return cached[1]
 
     result = _probe(username)
 

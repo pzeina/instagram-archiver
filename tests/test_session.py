@@ -173,3 +173,35 @@ class ThrottlingIsNotLogout(unittest.TestCase):
             result = self.probe_with(self.FakeLoader("moi", adds_error=False), root)
         self.assertTrue(result["valid"])
         self.assertEqual(result["account"], "moi")
+
+
+class ThrottlingIsHandledGently(unittest.TestCase):
+    def setUp(self) -> None:
+        session.invalidate()
+
+    def tearDown(self) -> None:
+        session.invalidate()
+
+    def test_a_throttled_account_is_asked_far_less_often(self) -> None:
+        """Interroger un compte qu'Instagram limite ne peut qu'entretenir la
+        limitation : l'intervalle doit etre nettement plus long."""
+        self.assertGreater(session.UNREACHABLE_TTL, session.STATUS_TTL * 4)
+
+    def test_instaloader_is_prevented_from_writing_to_the_terminal(self) -> None:
+        """Sa methode error() imprime sans tenir compte de « quiet » : un compte
+        limite remplissait le terminal du meme message, des milliers de fois."""
+        class FakeContext:
+            def __init__(self):
+                self.error_log = []
+                self.printed = []
+            def error(self, msg, repeat_at_end=True):
+                self.printed.append(msg)
+
+        class FakeLoader:
+            def __init__(self):
+                self.context = FakeContext()
+
+        loader = session._hush(FakeLoader())
+        loader.context.error("400 feedback_required")
+        self.assertEqual(loader.context.printed, [])
+        self.assertEqual(loader.context.error_log, ["400 feedback_required"])
