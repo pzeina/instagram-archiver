@@ -106,3 +106,68 @@ class ExportParsing(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExportDetection(unittest.TestCase):
+    """Detection automatique : trouver l'export sans que l'utilisateur donne un chemin."""
+
+    def setUp(self) -> None:
+        self.tmp = TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+
+        self.real = self.dir / "instagram-moi-2026-09-30.zip"
+        with zipfile.ZipFile(self.real, "w") as archive:
+            archive.writestr("saved/saved_posts.json", json.dumps(SAVED, ensure_ascii=False))
+
+        # Une archive sans rapport, qui porte tout de meme « instagram » dans son nom.
+        self.impostor = self.dir / "instagram-fond-ecran.zip"
+        with zipfile.ZipFile(self.impostor, "w") as archive:
+            archive.writestr("image.png", b"pas un export")
+
+        # Une archive etrangere, qui ne doit jamais etre ouverte.
+        self.stranger = self.dir / "sauvegarde-comptable.zip"
+        with zipfile.ZipFile(self.stranger, "w") as archive:
+            archive.writestr("saved/saved_posts.json", json.dumps(SAVED))
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_recognises_an_export_by_its_content(self) -> None:
+        self.assertTrue(dyi.looks_like_export(self.real))
+
+    def test_rejects_an_archive_that_merely_has_the_right_name(self) -> None:
+        self.assertFalse(dyi.looks_like_export(self.impostor))
+
+    def test_rejects_something_that_is_not_an_archive(self) -> None:
+        junk = self.dir / "instagram-note.zip"
+        junk.write_bytes(b"ceci n'est pas un zip")
+        self.assertFalse(dyi.looks_like_export(junk))
+
+    def test_finds_the_export_in_a_given_directory(self) -> None:
+        found = dyi.find_exports([self.dir])
+        self.assertIn(self.real.resolve(), found)
+
+    def test_never_opens_archives_unrelated_to_instagram(self) -> None:
+        """Le pre-filtre par nom est autant une question de vitesse que de
+        discretion : rien ne justifie d'ouvrir les archives de l'utilisateur."""
+        self.assertNotIn(self.stranger.resolve(), dyi.find_exports([self.dir]))
+
+    def test_returns_the_most_recent_export_first(self) -> None:
+        import os
+        older = self.dir / "instagram-moi-2026-01-01.zip"
+        with zipfile.ZipFile(older, "w") as archive:
+            archive.writestr("saved/saved_posts.json", json.dumps(SAVED))
+        os.utime(older, (1_600_000_000, 1_600_000_000))
+        self.assertEqual(dyi.find_exports([self.dir])[0], self.real.resolve())
+
+    def test_reads_a_split_export_as_one(self) -> None:
+        """Un export volumineux arrive en « part-1 », « part-2 »... ; la
+        bibliotheque complete n'existe qu'une fois les deux reunis."""
+        second = self.dir / "instagram-moi-part-2.zip"
+        other = {"saved_saved_media": [{"title": "autre", "string_map_data": {
+            "Saved on": {"href": "https://www.instagram.com/p/CCC3/",
+                         "timestamp": 1730000000}}}]}
+        with zipfile.ZipFile(second, "w") as archive:
+            archive.writestr("saved/saved_posts.json", json.dumps(other))
+        merged = dyi.parse_all([self.real, second])
+        self.assertEqual(set(merged), {"AAA1", "BBB2", "CCC3"})

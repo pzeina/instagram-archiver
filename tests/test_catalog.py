@@ -107,3 +107,126 @@ class CatalogOutputs(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CollectionFolders(unittest.TestCase):
+    """L'arborescence des collections, qui reproduit la bibliotheque de l'application."""
+
+    def setUp(self) -> None:
+        self.tmp = TemporaryDirectory()
+        self.archive = Path(self.tmp.name)
+        self.meta = self.archive / "metadata"
+        self.meta.mkdir()
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def media(self, name: str) -> str:
+        relative = f"media/2026/{name}"
+        (self.archive / relative).mkdir(parents=True, exist_ok=True)
+        (self.archive / relative / "clip.mp4").write_bytes(b"x" * 10)
+        return relative
+
+    def test_creates_one_folder_per_collection(self) -> None:
+        records = [
+            {"shortcode": "A", "directory": self.media("a"), "collections": ["Cuisine"]},
+            {"shortcode": "B", "directory": self.media("b"), "collections": ["Voyage"]},
+        ]
+        result = catalog.build_collection_links(self.archive, records)
+        self.assertEqual(result["collections"], {"Cuisine": 1, "Voyage": 1})
+        self.assertTrue((self.archive / "collections/Cuisine/a").is_symlink())
+
+    def test_links_instead_of_copying(self) -> None:
+        """Un reel range dans trois collections ne doit occuper la place qu'une fois."""
+        records = [{"shortcode": "A", "directory": self.media("a"),
+                    "collections": ["Un", "Deux", "Trois"]}]
+        catalog.build_collection_links(self.archive, records)
+        links = list((self.archive / "collections").rglob("a"))
+        self.assertEqual(len(links), 3)
+        self.assertTrue(all(link.is_symlink() for link in links))
+
+    def test_links_are_relative_so_the_archive_stays_movable(self) -> None:
+        records = [{"shortcode": "A", "directory": self.media("a"), "collections": ["Cuisine"]}]
+        catalog.build_collection_links(self.archive, records)
+        target = (self.archive / "collections/Cuisine/a").readlink()
+        self.assertFalse(target.is_absolute())
+        self.assertTrue((self.archive / "collections/Cuisine/a").resolve().is_dir())
+
+    def test_a_content_without_a_collection_is_still_reachable(self) -> None:
+        records = [{"shortcode": "A", "directory": self.media("a")}]
+        result = catalog.build_collection_links(self.archive, records)
+        self.assertEqual(result["collections"], {catalog.UNSORTED_NAME: 1})
+
+    def test_a_collection_removed_in_the_app_disappears_here(self) -> None:
+        first = [{"shortcode": "A", "directory": self.media("a"), "collections": ["Ancienne"]}]
+        catalog.build_collection_links(self.archive, first)
+        second = [{"shortcode": "A", "directory": "media/2026/a", "collections": ["Nouvelle"]}]
+        catalog.build_collection_links(self.archive, second)
+        self.assertFalse((self.archive / "collections/Ancienne").exists())
+        self.assertTrue((self.archive / "collections/Nouvelle/a").is_symlink())
+
+    def test_the_cleanup_never_deletes_a_real_file(self) -> None:
+        """Le nettoyage ne retire que des liens. Un fichier depose la par
+        l'utilisateur, ou un media, doit survivre a toute reconstruction."""
+        intruder = self.archive / "collections/Cuisine"
+        intruder.mkdir(parents=True)
+        (intruder / "mes-notes.txt").write_text("a garder", encoding="utf-8")
+        records = [{"shortcode": "A", "directory": self.media("a"), "collections": ["Cuisine"]}]
+
+        catalog.build_collection_links(self.archive, records)
+
+        self.assertTrue((intruder / "mes-notes.txt").exists())
+        self.assertEqual((intruder / "mes-notes.txt").read_text(encoding="utf-8"), "a garder")
+        self.assertTrue((self.archive / "media/2026/a/clip.mp4").exists())
+
+    def test_a_slash_in_a_collection_name_does_not_create_a_subfolder(self) -> None:
+        records = [{"shortcode": "A", "directory": self.media("a"),
+                    "collections": ["Recettes/Desserts"]}]
+        catalog.build_collection_links(self.archive, records)
+        folders = [p.name for p in (self.archive / "collections").iterdir()]
+        self.assertEqual(folders, ["Recettes-Desserts"])
+
+
+class SavedDateDisplay(unittest.TestCase):
+    """Ce que la page affiche selon que la date d'enregistrement est connue ou non."""
+
+    def setUp(self) -> None:
+        self.tmp = TemporaryDirectory()
+        self.archive = Path(self.tmp.name)
+        self.meta = self.archive / "metadata"
+        self.meta.mkdir()
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def page(self, *records: Record) -> str:
+        for item in records:
+            catalog.write_record(self.meta, item)
+        catalog.write_html_catalog(self.archive, catalog.load_records(self.meta))
+        return (self.archive / "index.html").read_text(encoding="utf-8")
+
+    def test_shows_the_exact_date_once_it_is_known(self) -> None:
+        page = self.page(record("X", saved_at="2026-09-25T14:30:00+00:00",
+                                saved_timestamp=1790000000))
+        self.assertIn("enregistr&eacute; le 2026-09-25", page)
+        self.assertNotIn("de la liste", page)
+
+    def test_explains_itself_when_the_date_is_missing(self) -> None:
+        """« rang 3 » n'apprend rien : la page doit dire d'ou vient la date."""
+        page = self.page(record("X", saved_rank=2))
+        self.assertIn("3e de la liste", page)
+        self.assertIn("export officiel", page)
+
+    def test_warns_only_while_dates_are_missing(self) -> None:
+        self.assertIn('class="banner"', self.page(record("X", saved_rank=0)))
+
+    def test_no_warning_once_every_date_is_known(self) -> None:
+        page = self.page(record("X", saved_at="2026-09-25T14:30:00+00:00",
+                                saved_timestamp=1790000000))
+        self.assertNotIn('class="banner"', page)
+
+    def test_a_content_can_be_filtered_by_any_of_its_collections(self) -> None:
+        page = self.page(record("X", collections=["Cuisine", "Voyage"]))
+        self.assertIn('data-collections="|Cuisine|Voyage|"', page)
+        for name in ("Cuisine", "Voyage"):
+            self.assertIn(f'<option value="{name}">', page)

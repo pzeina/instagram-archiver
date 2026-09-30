@@ -58,6 +58,11 @@
   button.danger:hover:not(:disabled) { border-color:var(--bad); color:var(--bad); }
   button:disabled { opacity:.45; cursor:not-allowed; }
 
+  .colls { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+  .colls:empty { display:none; }
+  .coll { font-size:11.5px; padding:2px 9px; border-radius:99px;
+    background:var(--accent-soft); color:var(--accent); }
+  .coll.muted { background:transparent; border:1px solid var(--line); color:var(--muted); }
   .checks { display:flex; gap:16px; flex-wrap:wrap; margin:6px 0 12px; }
   .check { display:flex; align-items:center; gap:7px; font-size:13.5px; color:var(--fg); }
   .check input { width:15px; height:15px; accent-color:var(--accent); }
@@ -195,7 +200,12 @@
     <div class="field"><label for="export-file">Fichier .zip reçu d'Instagram</label>
       <input type="file" id="export-file" accept=".zip"></div>
     <button id="btn-upload">Lire l'export</button>
+    <button id="btn-auto">Chercher tout seul</button>
   </div>
+  <p class="note">« Chercher tout seul » regarde dans vos téléchargements et sur votre
+     bureau. Un export volumineux arrive découpé en plusieurs archives : elles sont
+     toutes lues.</p>
+  <div id="colls" class="colls"></div>
   <details>
     <summary>Indiquer un chemin plutôt qu'envoyer le fichier</summary>
     <div class="row">
@@ -361,6 +371,16 @@ function render(state) {
   $("s-gone").textContent = sum.unavailable;
   $("archive-path").textContent = sum.archive_dir +
     (sum.exists ? "" : "  (pas encore créé)");
+
+  var colls = sum.collections || {};
+  var names = Object.keys(colls);
+  $("colls").innerHTML = names.length
+    ? names.map(function (n) {
+        return '<span class="coll">' + n.replace(/</g, "&lt;") + " · " + colls[n] + "</span>";
+      }).join("") +
+      (sum.uncategorised ? '<span class="coll muted">sans collection · ' +
+        sum.uncategorised + "</span>" : "")
+    : "";
 }
 
 async function refresh() {
@@ -441,6 +461,12 @@ wire("btn-upload", async () => {
   if (!file) { say("msg-dyi", "Choisissez d'abord le fichier .zip.", "bad"); return; }
   say("msg-dyi", "Envoi et lecture de " + file.name + " (" + bytes(file.size) + ")…");
   try { say("msg-dyi", (await api("/api/dyi/upload", file)).message, "ok"); }
+  catch (e) { say("msg-dyi", e.message, "bad"); }
+});
+
+wire("btn-auto", async () => {
+  say("msg-dyi", "Recherche dans les téléchargements et sur le bureau…");
+  try { say("msg-dyi", (await api("/api/dyi/auto", {})).message, "ok"); }
   catch (e) { say("msg-dyi", e.message, "bad"); }
 });
 

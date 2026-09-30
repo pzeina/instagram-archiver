@@ -55,10 +55,21 @@ class AppState:
             "sessions": session.list_sessions(),
             "session": session.status(cfg.username) if cfg.username else
                        {"exists": False, "valid": False, "account": None},
-            "summary": fetch.summary(cfg),
+            "summary": {**fetch.summary(cfg), **_collection_summary(cfg)},
             "problems": cfg.problems(),
             "job": self.runner.state(),
         }
+
+
+def _collection_summary(cfg: Config) -> dict[str, Any]:
+    """Nombre de contenus par collection, lu sans rien reconstruire."""
+    counts: dict[str, int] = {}
+    for record in catalog.load_records(cfg.metadata_dir):
+        for name in catalog.record_collections(record):
+            counts[name] = counts.get(name, 0) + 1
+    real = {k: v for k, v in counts.items() if k != catalog.UNSORTED_NAME}
+    return {"collections": dict(sorted(real.items(), key=lambda kv: (-kv[1], kv[0]))),
+            "uncategorised": counts.get(catalog.UNSORTED_NAME, 0)}
 
 
 # ---------------------------------------------------------------------------
@@ -144,14 +155,46 @@ def action_dyi(state: AppState, body: dict) -> dict:
     return ingest_export(state, Path(raw).expanduser())
 
 
-def ingest_export(state: AppState, source: Path) -> dict:
-    """Lit un export deja pose sur le disque et fusionne ses dates."""
-    parsed = dyi.parse(source)
-    existing = fetch.read_saved_dates(state.config)
-    merged, added = dyi.merge_into(existing, parsed)
+def ingest_exports(state: AppState, sources: list[Path]) -> dict:
+    """Lit un ou plusieurs exports et fusionne dates et collections.
+
+    Reconstruit le catalogue dans la foulee : les fiches deja ecrites gagnent
+    leur date et leur collection sans qu'aucun media soit retelecharge.
+    """
+    parsed = dyi.parse_all(sources)
+    merged, added = dyi.merge_into(fetch.read_saved_dates(state.config), parsed)
     fetch.write_saved_dates(state.config, merged)
+
+    cfg = state.config
+    cfg.ensure_dirs()
+    built = catalog.build(cfg.archive, cfg.metadata_dir, merged)
+    names = sorted(built.get("collections", {}))
+    detail = f" {len(names)} collections : {', '.join(names)}." if names else ""
     return {"ok": True, "total": len(merged), "added": added,
-            "message": f"{len(merged)} contenus dates, dont {added} nouveaux."}
+            "collections": built.get("collections", {}),
+            "dated": built["dated"],
+            "message": (f"{len(merged)} contenus dates, dont {added} nouveaux.{detail} "
+                        f"Catalogue mis a jour : {built['dated']} fiches datees.")}
+
+
+def ingest_export(state: AppState, source: Path) -> dict:
+    return ingest_exports(state, [source])
+
+
+def action_dyi_auto(state: AppState, body: dict) -> dict:
+    """Cherche l'export dans les telechargements et sur le bureau."""
+    sources = dyi.find_exports()
+    if not sources:
+        raise ValueError(
+            "Aucun export Instagram trouve dans les telechargements ni sur le bureau.\n"
+            "Demande-le sur accountscenter.instagram.com (format JSON, « Elements "
+            "enregistres »), puis reessaie — ou depose le fichier ci-dessus."
+        )
+    result = ingest_exports(state, sources)
+    result["sources"] = [str(s) for s in sources]
+    result["message"] = (f"Lu depuis {', '.join(s.name for s in sources)}. "
+                         + result["message"])
+    return result
 
 
 def action_catalog(state: AppState, body: dict) -> dict:
@@ -225,6 +268,7 @@ ACTIONS: dict[str, Callable[[AppState, dict], dict]] = {
     "/api/session/password": action_session_password,
     "/api/session/forget": action_session_forget,
     "/api/dyi": action_dyi,
+    "/api/dyi/auto": action_dyi_auto,
     "/api/catalog": action_catalog,
     "/api/fetch/start": action_fetch_start,
     "/api/fetch/cancel": action_fetch_cancel,

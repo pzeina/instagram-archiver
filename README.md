@@ -28,6 +28,7 @@ Un compte se ferme, un contenu disparaît, et votre bibliothèque se vide sans p
 
 - 🎬 **La vidéo, vraiment** — les fichiers `.mp4`, pas seulement des liens
 - 📅 **La date d'enregistrement** — que nul autre outil ne récupère (voir plus bas)
+- 🗂️ **Vos collections** — reconstituées en dossiers, comme dans l'application
 - 🔎 **Consultable hors ligne** — une page web, un CSV, du JSON
 - 🔁 **Reprenable** — coupure, plantage ou blocage : rien n'est jamais refait deux fois
 - 🔒 **Entièrement local** — aucun service tiers, aucune IA, aucune télémétrie
@@ -79,6 +80,9 @@ directement, la recherche porte sur les auteurs, les légendes et les hashtags.
 │   ├── ….jpg           vignette, et chaque image d'un carrousel
 │   ├── ….txt           la description
 │   └── ….json          la réponse brute d'Instagram, pour vérification
+├── collections/        vos collections, en dossiers
+│   ├── Poterie/ → liens vers les contenus concernés
+│   └── Sans collection/
 ├── metadata/           une fiche normalisée par contenu
 └── state/              le registre de reprise
 ```
@@ -86,6 +90,25 @@ directement, la recherche porte sur les auteurs, les légendes et les hashtags.
 Chaque fiche porte : identifiant, lien, type (`reel` / `video` / `image` / `carousel`), auteur,
 date de publication, **date d'enregistrement**, collection, description, hashtags, mentions,
 lieu, durée, likes, commentaires, fichiers et taille.
+
+---
+
+## Vos collections, telles que dans l'application
+
+Le dossier `collections/` reproduit l'organisation de votre bibliothèque Instagram. Chaque
+entrée est un **lien**, pas une copie : un reel rangé dans trois collections n'occupe la place
+qu'une fois, et les liens étant relatifs, l'archive reste déplaçable d'un disque à l'autre.
+
+L'arborescence se reconstruit à chaque `igarchive catalog`. Une collection supprimée dans
+l'application disparaît donc d'ici — sans qu'aucun média ne soit touché, le nettoyage ne
+retirant que des liens. Les contenus qui n'appartiennent à aucune collection sont regroupés
+sous « Sans collection ».
+
+Dans le catalogue, chaque vignette porte ses collections, et le menu déroulant permet de
+n'afficher que l'une d'elles.
+
+> Les collections viennent de l'export officiel, comme les dates. Avant son import, tout se
+> trouve dans « Sans collection ».
 
 ---
 
@@ -100,6 +123,15 @@ Aucune source ne donne tout :
 
 `igarchive` lit les deux et les fusionne par identifiant de contenu. L'export peut arriver
 après coup : les fiches déjà écrites sont enrichies, sans rien retélécharger.
+
+**L'import est automatique.** Le bouton *Chercher tout seul* de l'étape 3 — ou `igarchive dyi`
+sans argument — trouve l'export dans vos téléchargements et sur votre bureau, lit toutes les
+parties s'il est découpé, puis reconstruit le catalogue dans la foulée. Seules les archives
+dont le nom évoque Instagram sont ouvertes : vos autres fichiers ne sont jamais inspectés.
+
+Tant que l'export n'a pas été importé, le catalogue affiche l'**ordre** d'enregistrement
+(« 3ᵉ de la liste ») plutôt qu'une date, et l'explique en tête de page. Une fois importé,
+il affiche « enregistré le AAAA-MM-JJ ».
 
 ---
 
@@ -143,7 +175,8 @@ ou une machine sans écran.
 
 ```bash
 igarchive session --user VOTRE_PSEUDO     # ouvrir une session
-igarchive dyi --export ~/Downloads/instagram-export.zip
+igarchive dyi                             # trouve l'export tout seul
+igarchive dyi --export ~/Downloads/instagram-export.zip   # ou un chemin précis
 igarchive fetch --dry-run --limit 20      # aperçu, ne télécharge rien
 igarchive fetch                           # archiver
 igarchive catalog --open                  # reconstruire et ouvrir

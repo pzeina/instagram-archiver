@@ -21,6 +21,13 @@ from typing import Any, Iterator
 SAVED_FILENAMES = ("saved_posts.json", "saved_collections.json")
 SHORTCODE_RE = re.compile(r"instagram\.com/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)")
 
+# Dossiers ou l'export atterrit, selon la langue du systeme.
+DOWNLOAD_DIR_NAMES = (
+    "Downloads", "Telechargements", "Téléchargements", "Descargas",
+    "Downloads", "Scaricati", "Transferencias",
+)
+DESKTOP_DIR_NAMES = ("Desktop", "Bureau", "Escritorio", "Scrivania")
+
 
 class ExportError(RuntimeError):
     """Export illisible ou ne contenant pas les fichiers attendus."""
@@ -158,3 +165,81 @@ def merge_into(existing: dict[str, dict], parsed: dict[str, dict]) -> tuple[dict
             existing[code] = record
             added += 1
     return existing, added
+
+
+# ---------------------------------------------------------------------------
+# detection automatique
+# ---------------------------------------------------------------------------
+
+def looks_like_export(source: Path) -> bool:
+    """Vrai si cette archive ou ce dossier contient les fichiers recherches.
+
+    On regarde le contenu plutot que le nom : Instagram a change plusieurs fois
+    la facon de nommer ses exports, et un nom n'est de toute facon pas une preuve.
+    """
+    try:
+        if source.is_file() and source.suffix.lower() == ".zip":
+            with zipfile.ZipFile(source) as archive:
+                # Lire le sommaire suffit : le contenu n'est pas decompresse.
+                return any(Path(n).name in SAVED_FILENAMES for n in archive.namelist())
+        if source.is_dir():
+            return any(next(source.rglob(name), None) is not None
+                       for name in SAVED_FILENAMES)
+    except (zipfile.BadZipFile, OSError, ValueError):
+        return False
+    return False
+
+
+# Un export Instagram porte « instagram » ou « meta » dans son nom. On s'en sert
+# comme pre-filtre : sans lui, la detection ouvrirait chaque archive du dossier
+# de telechargement, ce qui est lent et n'a pas a se faire sur des fichiers
+# etrangers a l'outil.
+EXPORT_NAME_HINTS = ("instagram", "meta-", "meta_")
+
+
+def find_exports(extra_dirs: "list[Path] | None" = None) -> list[Path]:
+    """Exports Instagram plausibles, du plus recent au plus ancien.
+
+    Un export volumineux arrive decoupe en plusieurs archives (« part-1 »,
+    « part-2 »...) : la fonction les rend toutes, et l'appelant les lit toutes.
+    """
+    home = Path.home()
+    roots: list[Path] = list(extra_dirs or [])
+    roots += [home / name for name in DOWNLOAD_DIR_NAMES]
+    roots += [home / name for name in DESKTOP_DIR_NAMES]
+    roots.append(home)
+
+    found: dict[Path, float] = {}
+    for root in roots:
+        if not root.is_dir():
+            continue
+        # Un seul niveau : parcourir tout le dossier personnel serait trop lent.
+        try:
+            entries = list(root.iterdir())
+        except OSError:
+            continue
+        for candidate in entries:
+            name = candidate.name.lower()
+            if not any(hint in name for hint in EXPORT_NAME_HINTS):
+                continue
+            if candidate.is_file() and candidate.suffix.lower() != ".zip":
+                continue
+            try:
+                resolved = candidate.resolve()
+            except OSError:
+                continue
+            if resolved in found or not looks_like_export(candidate):
+                continue
+            try:
+                found[resolved] = candidate.stat().st_mtime
+            except OSError:
+                found[resolved] = 0.0
+    return [path for path, _ in sorted(found.items(), key=lambda kv: -kv[1])]
+
+
+def parse_all(sources: "list[Path]") -> dict[str, dict]:
+    """Lit plusieurs exports et les fusionne — cas des exports decoupes."""
+    merged: dict[str, dict] = {}
+    for source in sources:
+        merged, _ = merge_into(merged, parse(source))
+    return merged

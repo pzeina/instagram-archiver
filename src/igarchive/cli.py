@@ -64,17 +64,49 @@ def cmd_session(args: argparse.Namespace) -> int:
 
 def cmd_dyi(args: argparse.Namespace) -> int:
     cfg = _config(args)
+
+    if args.export:
+        sources = [Path(args.export).expanduser()]
+    else:
+        print("Recherche d'un export dans les telechargements et sur le bureau...")
+        sources = dyi.find_exports()
+        if not sources:
+            print("Aucun export Instagram trouve.\n"
+                  "Demande-le sur https://accountscenter.instagram.com/info_and_permissions/dyi/\n"
+                  "(format JSON, en cochant « Elements enregistres »), puis relance cette\n"
+                  "commande, ou indique le fichier avec --export.", file=sys.stderr)
+            return 1
+        for source in sources:
+            print(f"  trouve : {source}")
+
     try:
-        parsed = dyi.parse(Path(args.export).expanduser())
+        parsed = dyi.parse_all(sources)
     except dyi.ExportError as exc:
         print(f"Echec : {exc}", file=sys.stderr)
         return 1
     merged, added = dyi.merge_into(fetch.read_saved_dates(cfg), parsed)
     cfg.ensure_dirs()
     fetch.write_saved_dates(cfg, merged)
-    print(f"{len(merged)} contenus dates, dont {added} nouveaux.")
-    print(f"  -> {cfg.saved_dates_file}")
+    noms = sorted({c for r in merged.values() for c in (r.get("collections") or [])})
+    print(f"\n{len(merged)} contenus dates, dont {added} nouveaux.")
+    if noms:
+        print(f"{len(noms)} collections : {', '.join(noms)}")
+
+    # Les fiches deja ecrites profitent immediatement des dates et des collections.
+    built = catalog.build(cfg.archive, cfg.metadata_dir, merged)
+    print(f"Catalogue mis a jour : {built['count']} contenus, "
+          f"{built['dated']} avec date d'enregistrement exacte.")
+    _print_collections(built)
     return 0
+
+
+def _print_collections(built: dict) -> None:
+    if built.get("links_supported") is False:
+        print(f"  (dossiers de collections impossibles ici : {built.get('links_error')})")
+        return
+    for name, count in sorted(built.get("collections", {}).items(),
+                              key=lambda kv: (-kv[1], kv[0])):
+        print(f"    {count:4d}  {name}")
 
 
 def cmd_fetch(args: argparse.Namespace) -> int:
@@ -125,6 +157,7 @@ def cmd_catalog(args: argparse.Namespace) -> int:
           f"{built['dated']} avec date d'enregistrement exacte.")
     for key in ("csv", "json", "html"):
         print(f"  {built[key]}")
+    _print_collections(built)
     if args.open and not paths.open_in_browser(built["html"]):
         print("Ouverture automatique impossible ; ouvre le fichier a la main.")
     return 0
@@ -221,7 +254,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("dyi", parents=[common],
                        help="lire l'export officiel (dates d'enregistrement)")
-    p.add_argument("--export", required=True, help="chemin du .zip ou du dossier decompresse")
+    p.add_argument("--export", help="chemin du .zip ou du dossier decompresse ; "
+                                    "sans cette option, l'export est cherche automatiquement")
     p.set_defaults(func=cmd_dyi)
 
     p = sub.add_parser("fetch", parents=[common], help="telecharger les contenus enregistres")
