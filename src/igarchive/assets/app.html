@@ -43,10 +43,14 @@
     font:12.5px/1.5 var(--mono); resize:vertical; }
   :focus-visible { outline:2px solid var(--signal); outline-offset:1px; }
 
-  button { font:13.5px/1 var(--sans); color:var(--ink); background:var(--panel);
+  .pick { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+  .pick:focus-visible + label { outline:2px solid var(--signal); outline-offset:1px; }
+  .picked { font:12px/1.45 var(--mono); color:var(--ink-3); overflow-wrap:anywhere; }
+  button, .asbtn { display:inline-block; font:13.5px/1 var(--sans); color:var(--ink);
+    background:var(--panel);
     border:1px solid var(--rule-2); border-radius:3px; padding:.5rem .85rem;
     cursor:pointer; white-space:nowrap; }
-  button:hover:not(:disabled) { border-color:var(--signal); color:var(--signal); }
+  button:hover:not(:disabled), .asbtn:hover { border-color:var(--signal); color:var(--signal); }
   button:disabled { opacity:.4; cursor:not-allowed; }
 
   .main { width:100%; margin-top:1.75rem; padding:.85rem 1rem; font-size:.9375rem;
@@ -115,8 +119,9 @@
   </div>
   <p class="hint" id="reconnect-hint" hidden>
     Cette session n'est plus valable. Reconnectez-vous sur
-    <a href="https://www.instagram.com/" target="_blank" rel="noopener">instagram.com</a>,
-    puis revenez ici.
+    <a href="https://www.instagram.com/accounts/login/" target="_blank"
+       rel="noopener">instagram.com</a> : la nouvelle session sera reprise toute seule,
+    sans rien avoir à faire ici.
   </p>
 
   <div id="no-session" hidden>
@@ -181,6 +186,19 @@
       <button id="btn-forget">Oublier cette session</button>
     </div>
     <div class="msg" id="msg-cookie"></div>
+
+    <h3>Export officiel Instagram</h3>
+    <p class="hint" style="margin-top:0">Il contient les dates d'enregistrement et vos
+       collections, que rien d'autre ne fournit. Choisissez le <code>.zip</code> ici, ou
+       posez-le simplement dans votre dossier de sauvegarde : il sera lu au prochain
+       téléchargement.</p>
+    <div class="line">
+      <input type="file" id="export-file" accept=".zip" class="pick">
+      <label class="asbtn" for="export-file">Choisir le fichier…</label>
+      <span class="picked" id="picked">aucun fichier</span>
+      <button id="btn-upload">Lire</button>
+    </div>
+    <div class="msg" id="msg-dyi"></div>
 
     <h3>Emplacement des fichiers</h3>
     <p class="hint" style="margin-top:0" id="paths"></p>
@@ -251,7 +269,10 @@ function render(state) {
   const have = sessions.length > 0;
   $("have-session").hidden = !have;
   $("no-session").hidden = have;
-  $("reconnect-hint").hidden = !(have && s.exists && !s.valid);
+  // « je n'ai pas pu verifier » n'est pas « session expiree » : ne pas envoyer
+  // l'utilisateur se reconnecter alors que rien ne le lui demande.
+  const expired = s.exists && s.reachable !== false && !s.valid;
+  $("reconnect-hint").hidden = !(have && expired);
   $("btn-connect").textContent = have
     ? "Connecter un autre compte" : "Connecter ce navigateur";
 
@@ -265,8 +286,10 @@ function render(state) {
   if (state.config.username) select.value = state.config.username;
 
   const st = $("st-account");
-  st.textContent = s.valid ? "connecté" : (s.exists ? "session expirée" : "non connecté");
-  st.className = "state " + (s.valid ? "on" : "off");
+  if (s.valid) { st.textContent = "connecté"; st.className = "state on"; }
+  else if (expired) { st.textContent = "session expirée"; st.className = "state off"; }
+  else if (s.exists) { st.textContent = "vérification impossible"; st.className = "state"; }
+  else { st.textContent = "non connecté"; st.className = "state off"; }
 
   // --- archive ---
   if (!pathTouched && document.activeElement !== $("archive_dir")) {
@@ -293,7 +316,10 @@ function render(state) {
   $("current").textContent = pr.current || pr.message || "";
 
   if (pr.error) say("msg", pr.error, "bad");
-  else if (blocked && !s.valid) say("msg", "Connectez un compte pour commencer.", null);
+  else if (blocked && !s.valid && !s.exists) say("msg", "Connectez un compte pour commencer.", null);
+  else if (s.exists && s.reachable === false && !running)
+    say("msg", "Impossible de joindre Instagram pour vérifier la session. "
+             + "Le téléchargement reste possible : la session est peut-être valable.", null);
   else if (pr.finished && pr.phase === "termine") say("msg", "Terminé.", "ok");
   else if (!running) say("msg", "");
 
@@ -303,8 +329,8 @@ function render(state) {
     "figurent que dans l'export officiel d'Instagram. " +
     '<a href="https://accountscenter.instagram.com/info_and_permissions/dyi/" ' +
     'target="_blank" rel="noopener">Demandez-le</a> (format JSON, « Éléments ' +
-    "enregistrés ») : il sera lu tout seul au prochain téléchargement, une fois " +
-    "dans vos téléchargements.";
+    "enregistrés »), puis posez le fichier reçu dans votre dossier de sauvegarde — " +
+    "ou ouvrez « Détails et messages » pour le choisir.";
 
   // --- panneau ---
   const log = $("log");
@@ -353,6 +379,27 @@ wire("btn-connect", async () => {
   say("msg-session", "Recherche d'une session dans vos navigateurs…");
   try { say("msg-session", (await api("/api/session/auto", {})).message, "ok"); }
   catch (e) { say("msg-session", e.message, "bad"); }
+});
+
+$("export-file").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  $("picked").textContent = file ? file.name + " · " + bytes(file.size) : "aucun fichier";
+});
+
+wire("btn-upload", async () => {
+  const file = $("export-file").files[0];
+  if (!file) { say("msg-dyi", "Choisissez d'abord le fichier .zip.", "bad"); return; }
+  say("msg-dyi", "Lecture de " + file.name + "…");
+  try {
+    const response = await fetch("/api/dyi/upload", {
+      method: "POST",
+      headers: { "X-IG-Token": TOKEN, "Content-Type": "application/octet-stream" },
+      body: file,
+    });
+    const payload = await response.json();
+    if (!response.ok || payload.ok === false) throw new Error(payload.error || "échec");
+    say("msg-dyi", payload.message, "ok");
+  } catch (e) { say("msg-dyi", e.message, "bad"); }
 });
 
 wire("btn-cookie", async () => {

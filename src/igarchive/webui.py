@@ -17,6 +17,7 @@ import json
 import secrets
 import tempfile
 import threading
+import time
 from dataclasses import asdict
 from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -46,6 +47,16 @@ class AppState:
 
     def snapshot(self) -> dict[str, Any]:
         cfg = self.config
+        state = session.status(cfg.username) if cfg.username else {
+            "exists": False, "valid": False, "account": None, "reachable": True}
+
+        # La session a ete renouvelee dans le navigateur, peut-etre sur un autre
+        # compte : c'est lui le compte actif desormais.
+        recovered = state.get("recovered")
+        if recovered and recovered != cfg.username:
+            cfg.username = recovered
+            cfg.save()
+
         return {
             "version": __version__,
             "platform": "macOS" if paths.is_macos() else "Linux",
@@ -53,8 +64,7 @@ class AppState:
             "config_file": str(paths.config_file()),
             "browsers": list(session.SUPPORTED_BROWSERS),
             "sessions": session.list_sessions(),
-            "session": session.status(cfg.username) if cfg.username else
-                       {"exists": False, "valid": False, "account": None},
+            "session": state,
             "summary": {**fetch.summary(cfg), **_collection_summary(cfg)},
             "problems": cfg.problems(),
             "problems_detail": cfg.problems_detail(),
@@ -62,15 +72,29 @@ class AppState:
         }
 
 
+# Relire toutes les fiches a chaque rafraichissement de la page coute un acces
+# disque par contenu, une fois par seconde et demie. Quelques secondes de
+# retard sur un compteur ne genent personne.
+_SUMMARY_TTL = 4.0
+_summary_cache: "dict[str, tuple[float, dict]]" = {}
+
+
 def _collection_summary(cfg: Config) -> dict[str, Any]:
     """Nombre de contenus par collection, lu sans rien reconstruire."""
+    key = str(cfg.metadata_dir)
+    now = time.monotonic()
+    cached = _summary_cache.get(key)
+    if cached and now - cached[0] < _SUMMARY_TTL:
+        return cached[1]
     counts: dict[str, int] = {}
     for record in catalog.load_records(cfg.metadata_dir):
         for name in catalog.record_collections(record):
             counts[name] = counts.get(name, 0) + 1
     real = {k: v for k, v in counts.items() if k != catalog.UNSORTED_NAME}
-    return {"collections": dict(sorted(real.items(), key=lambda kv: (-kv[1], kv[0]))),
-            "uncategorised": counts.get(catalog.UNSORTED_NAME, 0)}
+    result = {"collections": dict(sorted(real.items(), key=lambda kv: (-kv[1], kv[0]))),
+              "uncategorised": counts.get(catalog.UNSORTED_NAME, 0)}
+    _summary_cache[key] = (now, result)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +160,7 @@ def action_session_use(state: AppState, body: dict) -> dict:
         raise ValueError(f"Aucune session enregistree pour {username}.")
     state.config.username = username
     state.config.save()
+    session.invalidate(username)
     return {"ok": True, "account": username, "message": f"Compte actif : {username}."}
 
 
@@ -236,9 +261,12 @@ def action_fetch_start(state: AppState, body: dict) -> dict:
 
     def work(cancel: threading.Event, report: Callable) -> None:
         # L'export officiel est la seule source des dates d'enregistrement et des
-        # collections. Le chercher ici evite d'en faire une etape de plus a suivre.
+        # collections. On ne le cherche que dans le dossier d'archive, choisi par
+        # l'utilisateur : balayer « Telechargements » ferait surgir une demande
+        # d'autorisation macOS au milieu d'un telechargement, sans rapport visible
+        # avec ce qui vient d'etre demande.
         try:
-            found = dyi.find_exports()
+            found = dyi.find_exports([cfg.archive], search_home=False)
             if found:
                 result = ingest_exports(state, found)
                 runner.log(f"Export officiel lu : {result['message']}")
@@ -262,6 +290,7 @@ def action_fetch_start(state: AppState, body: dict) -> dict:
             runner.log(result.error)
         if result.message:
             runner.log(result.message)
+        session.invalidate(cfg.username)
         if not dry_run and result.done:
             built = catalog.build(cfg.archive, cfg.metadata_dir,
                                   fetch.read_saved_dates(cfg))

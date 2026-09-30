@@ -167,3 +167,38 @@ class Catalogue(ServerCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DownloadTouchesNothingOutsideTheArchive(ServerCase):
+    """Un telechargement ne doit lire aucun dossier du systeme.
+
+    Parcourir « Telechargements », « Bureau » ou le dossier personnel fait
+    surgir une demande d'autorisation macOS au milieu d'un telechargement,
+    attribuee a l'application qui a lance le programme. Rien dans un archivage
+    ne justifie d'aller regarder la.
+    """
+
+    def test_the_download_path_never_searches_the_home_directory(self) -> None:
+        from unittest import mock
+
+        from igarchive import dyi
+
+        seen: list[dict] = []
+        real = dyi.find_exports
+
+        def spy(extra_dirs=None, *, search_home=True):
+            seen.append({"dirs": [str(d) for d in (extra_dirs or [])],
+                         "home": search_home})
+            return real(extra_dirs, search_home=search_home)
+
+        with mock.patch.object(dyi, "find_exports", spy):
+            self.call("/api/fetch/start", {})      # refuse : aucune session
+        self.assertTrue(all(not call["home"] for call in seen), seen)
+
+    def test_an_explicit_command_may_still_search_the_usual_folders(self) -> None:
+        """L'utilisateur qui tape « igarchive dyi » demande justement cela."""
+        from igarchive import dyi
+        import inspect
+
+        signature = inspect.signature(dyi.find_exports)
+        self.assertIs(signature.parameters["search_home"].default, True)

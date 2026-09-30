@@ -197,17 +197,25 @@ def looks_like_export(source: Path) -> bool:
 EXPORT_NAME_HINTS = ("instagram", "meta-", "meta_")
 
 
-def find_exports(extra_dirs: "list[Path] | None" = None) -> list[Path]:
+def find_exports(extra_dirs: "list[Path] | None" = None, *,
+                 search_home: bool = True) -> list[Path]:
     """Exports Instagram plausibles, du plus recent au plus ancien.
 
     Un export volumineux arrive decoupe en plusieurs archives (« part-1 »,
     « part-2 »...) : la fonction les rend toutes, et l'appelant les lit toutes.
+
+    `search_home=False` limite la recherche aux dossiers passes en argument.
+    Lire « Telechargements », « Bureau » ou le dossier personnel fait apparaitre
+    une demande d'autorisation macOS, attribuee a l'application qui a lance le
+    programme : acceptable quand l'utilisateur vient de taper « igarchive dyi »,
+    deplace au milieu d'un telechargement qu'il n'a pas relie a ces dossiers.
     """
-    home = Path.home()
     roots: list[Path] = list(extra_dirs or [])
-    roots += [home / name for name in DOWNLOAD_DIR_NAMES]
-    roots += [home / name for name in DESKTOP_DIR_NAMES]
-    roots.append(home)
+    if search_home:
+        home = Path.home()
+        roots += [home / name for name in DOWNLOAD_DIR_NAMES]
+        roots += [home / name for name in DESKTOP_DIR_NAMES]
+        roots.append(home)
 
     found: dict[Path, float] = {}
     for root in roots:
