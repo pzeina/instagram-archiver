@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "igarchive"
+version = "1.0.0"
+description = "Archivage local et autonome de vos contenus Instagram enregistres (videos, metadonnees, dates)."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "pzeina" }]
+keywords = ["instagram", "archive", "backup", "reels", "sauvegarde"]
+classifiers = [
+  "Environment :: Console",
+  "Environment :: Web Environment",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS :: MacOS X",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Topic :: System :: Archiving :: Backup",
+]
+
+# Une seule dependance. Aucun service en ligne, aucune IA, aucune telemetrie.
+dependencies = ["instaloader>=4.14"]
+
+[project.optional-dependencies]
+# Necessaire uniquement pour lire les cookies de Chrome / Safari / Edge / Brave.
+browsers = ["browser-cookie3>=0.19"]
+
+[project.scripts]
+igarchive = "igarchive.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/pzeina/instagram-archiver"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+igarchive = ["assets/*"]

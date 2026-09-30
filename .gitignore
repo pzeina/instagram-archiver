@@ -1,0 +1,19 @@
+# Jamais versionne : jeton de session (equivalent mot de passe) et donnees personnelles.
+sessions/
+archive/
+*.session
+config.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
