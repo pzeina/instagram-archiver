@@ -93,7 +93,7 @@ def cmd_dyi(args: argparse.Namespace) -> int:
         print(f"{len(noms)} collections : {', '.join(noms)}")
 
     # Les fiches deja ecrites profitent immediatement des dates et des collections.
-    built = catalog.build(cfg.archive, cfg.metadata_dir, merged)
+    built = catalog.build(cfg.archive, cfg.metadata_dir, merged, cfg.language)
     print(f"Catalogue mis a jour : {built['count']} contenus, "
           f"{built['dated']} avec date d'enregistrement exacte.")
     _print_collections(built)
@@ -138,13 +138,14 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     result = fetch.run(cfg, loader, on_progress=on_progress, dry_run=args.dry_run)
 
     print(f"\n{result.done} traites, {result.failed} en echec, "
-          f"{result.skipped} deja connus, {paths.human_bytes(result.bytes_total)}.")
+          f"{result.skipped} deja connus, {paths.human_bytes(result.bytes_total, cfg.language)}.")
     if result.message:
         print(result.message)
     if result.error:
         print(result.error, file=sys.stderr)
     if not args.dry_run and result.done:
-        built = catalog.build(cfg.archive, cfg.metadata_dir, fetch.read_saved_dates(cfg))
+        built = catalog.build(cfg.archive, cfg.metadata_dir,
+                          fetch.read_saved_dates(cfg), cfg.language)
         print(f"Catalogue : {built['count']} contenus -> {built['html']}")
     return 1 if result.error else 0
 
@@ -152,8 +153,9 @@ def cmd_fetch(args: argparse.Namespace) -> int:
 def cmd_catalog(args: argparse.Namespace) -> int:
     cfg = _config(args)
     cfg.ensure_dirs()
-    built = catalog.build(cfg.archive, cfg.metadata_dir, fetch.read_saved_dates(cfg))
-    print(f"{built['count']} contenus, {paths.human_bytes(built['bytes'])}, "
+    built = catalog.build(cfg.archive, cfg.metadata_dir,
+                          fetch.read_saved_dates(cfg), cfg.language)
+    print(f"{built['count']} contenus, {paths.human_bytes(built['bytes'], cfg.language)}, "
           f"{built['dated']} avec date d'enregistrement exacte.")
     for key in ("csv", "json", "html"):
         print(f"  {built[key]}")
@@ -176,7 +178,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     print(f"Archives       : {summary['archived']}")
     print(f"Indisponibles  : {summary['unavailable']}  (supprimes, ou comptes passes en prive)")
     print(f"En echec       : {summary['failed']}  (retentes a la prochaine passe)")
-    print(f"Volume         : {paths.human_bytes(summary['bytes'])}")
+    print(f"Volume         : {paths.human_bytes(summary['bytes'], cfg.language)}")
     print(f"Dates connues  : {summary['known_dates']}  (depuis l'export officiel)")
     if summary["known_dates"]:
         print(f"Restant        : {summary['pending_from_export']}")

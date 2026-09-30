@@ -1,42 +1,44 @@
 <h1 align="center">igarchive</h1>
 
 <p align="center">
-  <b>Sauvegardez votre bibliothèque Instagram « Enregistrés » sur votre propre disque.</b><br>
-  Les vidéos, les descriptions, les auteurs — et la date à laquelle vous avez enregistré chaque contenu.
+  <b>Back up your Instagram saved library to your own disk.</b><br>
+  The videos, the captions, the accounts — and the date you saved each item.
 </p>
 
 <p align="center">
-  <img alt="Licence MIT" src="https://img.shields.io/badge/licence-MIT-blue">
+  <img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue">
   <img alt="Python 3.9+" src="https://img.shields.io/badge/python-3.9%2B-3776ab">
-  <img alt="macOS et Linux" src="https://img.shields.io/badge/macOS%20%7C%20Linux-lightgrey">
-  <img alt="Une dépendance" src="https://img.shields.io/badge/dépendances-1-brightgreen">
-  <img alt="59 tests" src="https://img.shields.io/badge/tests-59-success">
+  <img alt="macOS and Linux" src="https://img.shields.io/badge/macOS%20%7C%20Linux-lightgrey">
+  <img alt="One dependency" src="https://img.shields.io/badge/dependencies-1-brightgreen">
+  <img alt="106 tests" src="https://img.shields.io/badge/tests-106-success">
 </p>
 
 <p align="center">
-  <img src="docs/interface.png" alt="L'interface d'igarchive : le compte, le dossier, un bouton" width="620">
+  <img src="docs/interface.png" alt="igarchive: the account, the folder, one button" width="600">
 </p>
 
 ---
 
-## Pourquoi
+## Why
 
-Instagram vous laisse enregistrer des publications et des reels, mais **rien pour les récupérer**.
-Un compte se ferme, un contenu disparaît, et votre bibliothèque se vide sans prévenir.
+Instagram lets you save posts and reels, but gives you **no way to get them back**.
+An account closes, a post disappears, and your library quietly empties.
 
-`igarchive` la copie chez vous, une bonne fois, puis se contente de la tenir à jour.
+`igarchive` copies it to your machine once, then just keeps it up to date.
 
-- 🎬 **La vidéo, vraiment** — les fichiers `.mp4`, pas seulement des liens
-- 📅 **La date d'enregistrement** — que nul autre outil ne récupère (voir plus bas)
-- 🗂️ **Vos collections** — reconstituées en dossiers, comme dans l'application
-- 🔎 **Consultable hors ligne** — une page web, un CSV, du JSON
-- 🔁 **Reprenable** — coupure, plantage ou blocage : rien n'est jamais refait deux fois
-- 🔒 **Entièrement local** — aucun service tiers, aucune IA, aucune télémétrie
-- 🧩 **Une seule dépendance** — [instaloader](https://instaloader.github.io/) ; tout le reste est la bibliothèque standard de Python
+- 🎬 **The video itself** — real `.mp4` files, not just links
+- 📅 **The save date** — which no other tool recovers (see below)
+- 🗂️ **Your collections** — rebuilt as folders, like in the app
+- 🔎 **Readable offline** — a web page, a CSV, JSON
+- 🔁 **Resumable** — a crash, a timeout or a block never costs you work already done
+- 🔒 **Entirely local** — no third-party service, no AI, no telemetry
+- 🧩 **One dependency** — [instaloader](https://instaloader.github.io/); everything else is the Python standard library
+
+Available in **English** and **French**, switchable from the interface.
 
 ---
 
-## Installation
+## Install
 
 ```bash
 git clone https://github.com/pzeina/instagram-archiver.git
@@ -44,133 +46,55 @@ cd instagram-archiver
 ./install.sh
 ```
 
-Puis lancez l'interface :
+Then open the interface:
 
 ```bash
 igarchive
 ```
 
-Choisissez le compte, le dossier, appuyez sur **Télécharger**. C'est tout.
-
 > [!TIP]
-> **Demandez votre export Instagram tout de suite.** Il met plusieurs heures à 48 h à arriver,
-> et c'est la seule source des dates d'enregistrement.
+> **Request your Instagram export now.** It takes a few hours to 48 hours to arrive, and it
+> is the only source of save dates and collections.
 > [accountscenter.instagram.com](https://accountscenter.instagram.com/info_and_permissions/dyi/)
-> → *Éléments enregistrés* → format **JSON** → toute la durée.
-> L'archivage peut tourner sans l'attendre.
+> → *Some of your information* → **Saved items** → **JSON** format → all time.
+> The backup does not have to wait for it.
 
 ---
 
-## Ce que vous obtenez
+## The interface
 
-<p align="center">
-  <img src="docs/catalogue.png" alt="Le catalogue : une vignette par contenu, recherche et filtres" width="720">
-</p>
-
-Une page à ouvrir dans n'importe quel navigateur, sans connexion : les vidéos se lisent
-directement, la recherche porte sur les auteurs, les légendes et les hashtags.
-
-```
-~/InstagramArchive/
-├── index.html          la page ci-dessus
-├── catalog.csv         une ligne par contenu — s'ouvre dans Excel ou Numbers
-├── catalog.json        les mêmes données, complètes
-├── media/2026/2026-09-22_atelier.terrecuite_Dq1/
-│   ├── ….mp4           la vidéo
-│   ├── ….jpg           vignette, et chaque image d'un carrousel
-│   ├── ….txt           la description
-│   └── ….json          la réponse brute d'Instagram, pour vérification
-├── collections/        vos collections, en dossiers
-│   ├── Poterie/ → liens vers les contenus concernés
-│   └── Sans collection/
-├── metadata/           une fiche normalisée par contenu
-└── state/              le registre de reprise
-```
-
-Chaque fiche porte : identifiant, lien, type (`reel` / `video` / `image` / `carousel`), auteur,
-date de publication, **date d'enregistrement**, collection, description, hashtags, mentions,
-lieu, durée, likes, commentaires, fichiers et taille.
-
----
-
-## Vos collections, telles que dans l'application
-
-Le dossier `collections/` reproduit l'organisation de votre bibliothèque Instagram. Chaque
-entrée est un **lien**, pas une copie : un reel rangé dans trois collections n'occupe la place
-qu'une fois, et les liens étant relatifs, l'archive reste déplaçable d'un disque à l'autre.
-
-L'arborescence se reconstruit à chaque `igarchive catalog`. Une collection supprimée dans
-l'application disparaît donc d'ici — sans qu'aucun média ne soit touché, le nettoyage ne
-retirant que des liens. Les contenus qui n'appartiennent à aucune collection sont regroupés
-sous « Sans collection ».
-
-Dans le catalogue, chaque vignette porte ses collections, et le menu déroulant permet de
-n'afficher que l'une d'elles.
-
-> Les collections viennent de l'export officiel, comme les dates. Avant son import, tout se
-> trouve dans « Sans collection ».
-
----
-
-## La date d'enregistrement, et pourquoi elle demande un détour
-
-Aucune source ne donne tout :
-
-| Source | Donne | Ne donne pas |
-|---|---|---|
-| **Export officiel Instagram** | la date exacte d'enregistrement, les collections | les vidéos — seuls *vos* contenus y figurent, pas ceux que vous avez enregistrés |
-| **Votre compte connecté** | la vidéo, la description, l'auteur, la date de publication | la date d'enregistrement — seulement l'ordre |
-
-`igarchive` lit les deux et les fusionne par identifiant de contenu. L'export peut arriver
-après coup : les fiches déjà écrites sont enrichies, sans rien retélécharger.
-
-**L'import est automatique.** À chaque téléchargement, l'export est cherché dans vos
-téléchargements et sur votre bureau, lu en entier même s'il est découpé en plusieurs archives,
-et le catalogue est reconstruit dans la foulée. Vous n'avez rien à faire d'autre que le
-demander à Instagram. Seules les archives dont le nom évoque Instagram sont ouvertes : vos
-autres fichiers ne sont jamais inspectés. (`igarchive dyi` fait la même chose au terminal.)
-
-Tant que l'export n'a pas été importé, le catalogue affiche l'**ordre** d'enregistrement
-(« 3ᵉ de la liste ») plutôt qu'une date, et l'explique en tête de page. Une fois importé,
-il affiche « enregistré le AAAA-MM-JJ ».
-
----
-
-## L'interface
-
-Deux réglages et un bouton.
+Two settings and one button.
 
 | | |
 |---|---|
-| **Compte** | La liste des comptes déjà connectés, avec un témoin *connecté* / *session expirée*. Sans compte, un lien vers la page de connexion Instagram et un bouton qui retrouve votre session dans vos navigateurs. |
-| **Dossier** | Où l'archive est écrite, et ce qu'elle contient déjà — nombre de contenus, taille, date du dernier archivage. |
-| **Télécharger** | Lance la sauvegarde. Pendant qu'elle tourne : les compteurs, le contenu en cours, un bouton pour arrêter. |
+| **Account** | The accounts you have already connected, with a *connected* indicator. Press **Connect the account** to check the session — that is the only moment Instagram is contacted about it. |
+| **Folder** | Where the archive is written, and what it already holds: item count, size, date of the last backup. |
+| **Back up** | Starts the backup. While it runs: counters, the item in progress, a stop button. |
 
-Le reste est décidé pour vous, parce que personne n'a besoin de le régler : le rythme des
-requêtes, le format récupéré, l'ordre de parcours. L'export officiel est cherché et lu tout seul
-à chaque téléchargement.
+Everything else is decided for you, because nobody needs to tune it. The gear icon opens
+advanced settings — request pacing, per-pass caps, what gets downloaded — for the rare case
+where you do.
 
-Un panneau *Détails et messages* garde le journal, les erreurs et la connexion par cookie, sans
-les mettre sur le chemin.
+A **Details and messages** panel holds the log, the errors and the cookie sign-in, without
+putting them in your way.
 
-**Tout ce qui a été retiré de l'interface reste dans la ligne de commande** — pauses, plafonds,
-commentaires, simulation. L'interface sert à sauvegarder sa bibliothèque ; le terminal sert à
-tout le reste.
+The official export is read automatically at the start of each backup, from your backup
+folder. Drop the `.zip` there and there is nothing else to do.
 
 <details>
-<summary><b>Si la détection de session échoue</b></summary>
+<summary><b>If session detection fails</b></summary>
 
 <br>
 
-Ouvrez *Détails et messages* et collez le cookie `sessionid` d'instagram.com. Cela fonctionne
-**partout**, y compris sur une machine sans navigateur :
+Open *Details and messages* and paste the `sessionid` cookie from instagram.com. This works
+**everywhere**, including on a machine with no browser:
 
-1. Dans votre navigateur, ouvrez les outils de développement sur instagram.com
+1. Open your browser's developer tools on instagram.com
 2. Application → Cookies → `instagram.com` → `sessionid`
-3. Copiez la valeur, collez-la dans le champ
+3. Copy the value, paste it into the field
 
-Chrome, Safari, Edge et Brave chiffrent leurs cookies ; leur lecture automatique demande un
-paquet supplémentaire :
+Chrome, Safari, Edge and Brave encrypt their cookies; reading them automatically needs one
+extra package:
 
 ```bash
 ./install.sh --browsers
@@ -180,29 +104,91 @@ paquet supplémentaire :
 
 ---
 
-## Ligne de commande
+## What you get
 
-Tout ce que fait l'interface se fait aussi au terminal — donc depuis une tâche planifiée
-ou une machine sans écran.
+<p align="center">
+  <img src="docs/catalogue.png" alt="The catalogue: one plate per item, search and filters" width="700">
+</p>
 
-```bash
-igarchive session --user VOTRE_PSEUDO     # ouvrir une session
-igarchive dyi                             # trouve l'export tout seul
-igarchive dyi --export ~/Downloads/instagram-export.zip   # ou un chemin précis
-igarchive fetch --dry-run --limit 20      # aperçu, ne télécharge rien
-igarchive fetch                           # archiver
-igarchive catalog --open                  # reconstruire et ouvrir
-igarchive status                          # où en est-on
+A page you can open in any browser with no connection: videos play directly, and the search
+covers accounts, captions and hashtags at once.
+
+```
+~/InstagramArchive/
+├── index.html          the page above
+├── catalog.csv         one row per item — opens straight in Excel or Numbers
+├── catalog.json        the same data, complete
+├── media/2026/2026-09-22_someone_Dq1/
+│   ├── ….mp4           the video
+│   ├── ….jpg           thumbnail, and every image of a carousel
+│   ├── ….txt           the caption
+│   └── ….json          Instagram's raw answer, for verification
+├── collections/        your collections, as folders
+├── metadata/           one normalised record per item
+└── state/              the resume ledger
 ```
 
-**Mise à jour ultérieure** — s'arrête dès 20 contenus déjà connus, donc en une minute :
+Each record holds: id, link, kind (`reel` / `video` / `image` / `carousel`), account, post
+date, **save date**, collection, caption, hashtags, mentions, place, duration, likes,
+comments, files and size.
+
+---
+
+## Your collections
+
+`collections/` mirrors your Instagram library. Each entry is a **link**, not a copy: a reel
+filed under three collections takes the space of one, and since the links are relative the
+archive stays movable from one disk to another.
+
+The tree is rebuilt on every catalogue build, so a collection you delete in the app
+disappears here too — without touching any media, because the cleanup only ever removes
+links. Items in no collection are grouped under *No collection*.
+
+> Collections come from the official export, like the dates. Before it is imported,
+> everything sits under *No collection*.
+
+---
+
+## The save date, and the detour it needs
+
+No single source has everything:
+
+| Source | Gives | Does not give |
+|---|---|---|
+| **Instagram's official export** | the exact save date, the collections | the videos — it contains *your* posts, not the ones you saved |
+| **Your connected account** | the video, the caption, the account, the post date | the save date — only the order |
+
+`igarchive` reads both and merges them by item id. The export can arrive later: records
+already written are enriched in place, with nothing re-downloaded.
+
+Until it is imported, the catalogue shows the save **rank** (“3rd in the list”) instead of a
+date, and says so at the top of the page.
+
+---
+
+## Command line
+
+Everything the interface does is available in a terminal — so from a scheduled job, or a
+machine with no screen.
+
+```bash
+igarchive session --user YOUR_HANDLE       # open a session
+igarchive dyi                              # find and read the official export
+igarchive fetch --dry-run --limit 20       # preview, downloads nothing
+igarchive fetch                            # back up
+igarchive catalog --open                   # rebuild and open
+igarchive status                           # where things stand
+igarchive config --set language=fr         # switch language
+```
+
+**Later updates** — stops after 20 already-known items, so about a minute:
 
 ```bash
 igarchive fetch --stop-after-known 20 && igarchive catalog
 ```
 
 <details>
-<summary><b>Automatiser (launchd, systemd, cron)</b></summary>
+<summary><b>Scheduling (launchd, systemd, cron)</b></summary>
 
 <br>
 
@@ -232,14 +218,14 @@ launchctl load ~/Library/LaunchAgents/com.perso.igarchive.plist
 mkdir -p ~/.config/systemd/user
 cat > ~/.config/systemd/user/igarchive.service <<'UNIT'
 [Unit]
-Description=Archivage des contenus Instagram enregistres
+Description=Back up saved Instagram content
 [Service]
 Type=oneshot
 ExecStart=/bin/sh -lc 'igarchive fetch --stop-after-known 20 && igarchive catalog'
 UNIT
 cat > ~/.config/systemd/user/igarchive.timer <<'UNIT'
 [Unit]
-Description=Archivage Instagram mensuel
+Description=Monthly Instagram backup
 [Timer]
 OnCalendar=monthly
 Persistent=true
@@ -249,7 +235,7 @@ UNIT
 systemctl --user daemon-reload && systemctl --user enable --now igarchive.timer
 ```
 
-`Persistent=true` rattrape l'exécution si la machine était éteinte à l'heure prévue.
+`Persistent=true` catches up if the machine was off at the scheduled time.
 
 **Linux — cron**
 
@@ -257,59 +243,58 @@ systemctl --user daemon-reload && systemctl --user enable --now igarchive.timer
 0 9 1 * * igarchive fetch --stop-after-known 20 && igarchive catalog
 ```
 
-Pensez à relancer `igarchive dyi` après chaque nouvel export officiel.
-
 </details>
 
 ---
 
-## À savoir avant de lancer
+## Before you start
 
 > [!IMPORTANT]
-> **Ne raccourcissez pas les pauses.** Instagram limite les comptes qui enchaînent les requêtes.
-> Le réglage par défaut (3 à 8 s) donne environ **une heure pour 500 contenus**. Sur une grosse
-> bibliothèque, étalez sur plusieurs jours avec `--limit 300`. En cas d'erreur 429, le programme
-> s'arrête **de lui-même** et reprend à la passe suivante.
+> **Do not shorten the pauses.** Instagram rate limits accounts that fire requests back to
+> back. The default (3 to 8 seconds) means roughly **one hour per 500 items**. On a large
+> library, spread it over several days with `--limit 300`. On a rate-limit error the program
+> stops **by itself** and resumes on the next pass.
 
-- **Depuis une connexion résidentielle**, pas depuis un VPN ni un serveur loué : les plages
-  d'hébergeurs sont bloquées bien plus vite.
-- **Ce qui a déjà disparu est perdu.** Un contenu supprimé, ou dont l'auteur est passé en privé,
-  est noté `unavailable` et jamais retenté indéfiniment. C'est l'argument pour commencer tôt :
-  l'export officiel vous donnera toujours le lien et la date, jamais la vidéo.
-- **Statut.** Récupérer ces contenus automatiquement est contraire aux conditions d'utilisation
-  d'Instagram, même appliqué à votre propre bibliothèque. Le risque concret est une limitation
-  temporaire du compte, que les pauses ci-dessus rendent peu probable.
-
----
-
-## Vie privée
-
-- **Rien ne sort de votre machine** en dehors des requêtes à Instagram.
-- **Aucun mot de passe n'est écrit sur le disque**, quelle que soit la méthode de connexion.
-- Le jeton de session vit dans `~/.config/igarchive/sessions/` en droits `600`. Il **vaut un mot
-  de passe**. Il est délibérément rangé *hors* de l'archive, pour qu'il ne parte pas avec elle
-  sur un disque externe ou dans un nuage.
-- L'interface n'écoute que sur `127.0.0.1`, et chaque appel à son API exige un jeton tiré au
-  hasard au démarrage : une autre page ouverte dans le même navigateur ne peut pas la piloter.
+- **From a home connection**, not a VPN or a rented server: hosting ranges are blocked far faster.
+- **What is already gone is gone.** A deleted post, or one whose author went private, is
+  recorded as `unavailable` and never retried forever. That is the argument for starting
+  early: the official export will always give you the link and the date, never the video.
+- **Status.** Retrieving this content automatically is against Instagram's terms of use, even
+  for your own library. The concrete risk is a temporary rate limit, which the pauses above
+  make unlikely.
 
 ---
 
-## Dépannage
+## Privacy
 
-| Symptôme | Remède |
+- **Nothing leaves your machine** apart from the requests to Instagram.
+- **No password is ever written to disk**, whichever sign-in method you use.
+- The session token lives in `~/.config/igarchive/sessions/` with mode `600`. It is **worth a
+  password**. It sits deliberately *outside* the archive, so it does not travel with it onto
+  an external disk or a cloud folder.
+- The interface listens on `127.0.0.1` only, and every API call needs a token drawn at
+  startup: another page open in the same browser cannot drive it.
+- The interface never queries Instagram on its own. It checks the session when you press
+  **Connect the account**, and at no other time.
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
 |---|---|
-| « Aucun cookie sessionid » | Vous n'êtes pas connecté à instagram.com dans ce navigateur, ou vous visez le mauvais. |
-| « …demande browser_cookie3 » | `./install.sh --browsers`, ou utilisez Firefox, ou collez le cookie. |
-| « La session a expiré » | Reconnectez-vous à instagram.com, puis appuyez sur « Connecter ce navigateur ». |
-| Erreur 429 | Normal sur une grosse bibliothèque. Attendez une à deux heures : la reprise est automatique. |
-| Beaucoup de `unavailable` | Contenus supprimés ou comptes passés en privé. Irrécupérable. |
-| Le port 8765 est pris | `igarchive ui --port 8766` |
-| Rien ne s'ouvre | Machine sans interface graphique : `igarchive ui --no-open`, puis ouvrez l'adresse affichée. |
+| “No sessionid cookie” | You are not signed in to instagram.com in that browser. |
+| “…needs browser_cookie3” | `./install.sh --browsers`, or use Firefox, or paste the cookie. |
+| Session will not confirm | Instagram is rate limiting the account. Wait a few minutes and press *Connect the account* again. |
+| Rate-limit error mid-backup | Normal on a large library. Wait an hour or two: resuming is automatic. |
+| Many `unavailable` items | Deleted posts, or accounts gone private. Not recoverable. |
+| Port 8765 already in use | Another program has it: `igarchive ui --port 8766`. A second `igarchive` simply opens the running window. |
+| Nothing opens | Headless machine: `igarchive ui --no-open`, then open the printed address. |
 
 ---
 
 <details>
-<summary><b>Développement</b></summary>
+<summary><b>Development</b></summary>
 
 <br>
 
@@ -318,35 +303,38 @@ python3 -m venv .venv && .venv/bin/pip install -e .
 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Les tests n'utilisent que la bibliothèque standard et **ne contactent jamais Instagram**. Ils
-couvrent l'analyse de l'export officiel (encodage cassé, champs localisés, fusion des
-collections), la configuration, le catalogue (échappement, tri, CSV), la résolution des chemins
-sur les deux systèmes — vérifiée en forçant la plateforme — et le serveur de l'interface,
-réellement démarré sur un port éphémère.
+Tests use the standard library only and **never contact Instagram**. They cover the official
+export parser (broken encoding, localised fields, collection merging), configuration,
+the catalogue (escaping, ordering, CSV, both languages), path resolution on both systems —
+checked by forcing the platform — and the interface server, actually started on an ephemeral
+port.
 
-| Fichier | Rôle |
+| File | Role |
 |---|---|
-| `paths.py` | emplacements, différences entre systèmes |
-| `config.py` | réglages persistants et leur validation |
-| `session.py` | ouverture de session — quatre méthodes |
-| `dyi.py` | analyse de l'export officiel |
-| `fetch.py` | téléchargement, registre de reprise |
-| `catalog.py` | fiche normalisée, sorties CSV / JSON / HTML |
-| `jobs.py` | exécution en tâche de fond |
-| `webui.py` | serveur local de l'interface |
-| `cli.py` | ligne de commande |
+| `paths.py` | locations, per-system differences |
+| `config.py` | persisted settings and their validation |
+| `i18n.py` | user-facing strings, English and French |
+| `session.py` | sign-in — four methods |
+| `dyi.py` | official export parser |
+| `fetch.py` | downloading, resume ledger |
+| `catalog.py` | normalised record, CSV / JSON / HTML output |
+| `jobs.py` | background execution |
+| `webui.py` | local interface server |
+| `cli.py` | command line |
 
-`fetch.py` ne connaît ni terminal ni interface : il signale son avancement par un rappel de
-fonction, ce qui permet aux deux de partager le même code.
+`fetch.py` knows nothing of terminals or interfaces: it reports progress through a callback,
+which is what lets both share the same code.
 
-L'interface est servie sur `127.0.0.1` par la bibliothèque standard plutôt que construite avec
-une bibliothèque graphique : Tk n'est pas présent dans toutes les installations Python de macOS
-et impose un paquet système différent sur chaque distribution Linux.
+The interface is served over `127.0.0.1` by the standard library rather than built with a GUI
+toolkit: Tk is missing from many macOS Python installs and needs a different system package on
+every Linux distribution.
+
+Source comments are in French; the user-facing project is English-first.
 
 </details>
 
 ---
 
 <p align="center">
-  <sub>MIT — voir <a href="LICENSE">LICENSE</a>. Projet indépendant, sans lien avec Meta ni Instagram.</sub>
+  <sub>MIT — see <a href="LICENSE">LICENSE</a>. Independent project, not affiliated with Meta or Instagram.</sub>
 </p>

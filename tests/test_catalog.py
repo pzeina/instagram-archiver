@@ -2,11 +2,12 @@
 
 import csv
 import json
+import re
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from igarchive import catalog
+from igarchive import catalog, i18n
 from igarchive.catalog import Record
 
 
@@ -73,13 +74,13 @@ class CatalogOutputs(unittest.TestCase):
     def test_html_survives_a_record_with_no_media_at_all(self) -> None:
         self.write(record("EMPTY", files=[]))
         catalog.write_html_catalog(self.archive, catalog.load_records(self.meta))
-        self.assertIn("aucun media",
+        self.assertIn(i18n.t("cat_no_media", "en"),
                       (self.archive / "index.html").read_text(encoding="utf-8"))
 
     def test_html_is_valid_with_an_empty_archive(self) -> None:
         catalog.write_html_catalog(self.archive, [])
         page = (self.archive / "index.html").read_text(encoding="utf-8")
-        self.assertIn("Aucun contenu archive", page)
+        self.assertIn(i18n.t("cat_empty", "en"), page)
 
     def test_saved_dates_are_applied_to_records_written_earlier(self) -> None:
         """L'export arrive apres coup : les fiches deja ecrites doivent en profiter."""
@@ -211,14 +212,14 @@ class SavedDateDisplay(unittest.TestCase):
         page = self.page(record("X", saved_at="2026-09-25T14:30:00+00:00",
                                 saved_timestamp=1790000000))
         self.assertIn("2026-09-25", page)
-        self.assertIn("enregistr&eacute; le", page)
-        self.assertNotIn("de la liste", page)
+        self.assertIn(i18n.t("cat_saved_on", "en"), page)
+        self.assertNotIn("in the list", page)
 
     def test_explains_itself_when_the_date_is_missing(self) -> None:
         """« rang 3 » n'apprend rien : la page doit dire d'ou vient la date."""
         page = self.page(record("X", saved_rank=2))
-        self.assertIn("3e de la liste", page)
-        self.assertIn("export officiel", page)
+        self.assertIn(i18n.t("cat_rank_value", "en", position="3rd"), page)
+        self.assertIn("official export", page)
 
     def test_warns_only_while_dates_are_missing(self) -> None:
         self.assertIn('class="banner"', self.page(record("X", saved_rank=0)))
@@ -233,3 +234,97 @@ class SavedDateDisplay(unittest.TestCase):
         self.assertIn('data-collections="|Cuisine|Voyage|"', page)
         for name in ("Cuisine", "Voyage"):
             self.assertIn(f'<option value="{name}">', page)
+
+
+class ThePageFollowsTheChosenLanguage(unittest.TestCase):
+    """Le catalogue est un fichier autonome : la langue doit y etre figee au
+    moment de sa construction, pas devinee par le navigateur qui l'ouvre."""
+
+    def setUp(self) -> None:
+        self.tmp = TemporaryDirectory()
+        self.archive = Path(self.tmp.name)
+        self.meta = self.archive / "metadata"
+        self.meta.mkdir()
+        catalog.write_record(self.meta, record("X", saved_rank=0))
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def page(self, lang: str) -> str:
+        catalog.build(self.archive, self.meta, None, lang)
+        return (self.archive / "index.html").read_text(encoding="utf-8")
+
+    def test_english_is_what_a_default_build_produces(self) -> None:
+        page = self.page(i18n.DEFAULT_LANGUAGE)
+        self.assertIn('<html lang="en"', page)
+        self.assertIn(i18n.t("cat_title", "en"), page)
+
+    def test_french_is_produced_on_request(self) -> None:
+        page = self.page("fr")
+        self.assertIn('<html lang="fr"', page)
+        self.assertIn(i18n.t("cat_title", "fr"), page)
+        self.assertNotIn(i18n.t("cat_search", "en"), page)
+
+    def test_the_ordinal_reads_naturally_in_each_language(self) -> None:
+        self.assertIn("1st in the list", self.page("en"))
+        self.assertIn("1er de la liste", self.page("fr"))
+
+
+class NoLanguageLeaksIntoThePage(unittest.TestCase):
+    """Une chaine oubliee lors de la traduction ne se voit pas a la relecture :
+    la page reste correcte, un seul mot change de langue. Ce test la trouve."""
+
+    def setUp(self) -> None:
+        self.tmp = TemporaryDirectory()
+        self.archive = Path(self.tmp.name)
+        self.meta = self.archive / "metadata"
+        self.meta.mkdir()
+        catalog.write_record(self.meta, record(
+            "X", kind="reel", author="someone", saved_rank=2,
+            caption="a caption", hashtags=["tag"], collections=["Pottery"],
+            files=["media/2026/x/clip.mp4"]))
+        catalog.write_record(self.meta, record(
+            "Y", saved_at="2026-09-25T10:00:00+00:00", saved_timestamp=1790000000))
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def page(self, lang: str) -> str:
+        catalog.build(self.archive, self.meta, None, lang)
+        return (self.archive / "index.html").read_text(encoding="utf-8")
+
+    @staticmethod
+    def visible(page: str) -> str:
+        """Le balisage sans son CSS ni son JavaScript.
+
+        Chercher un mot court dans tout le document donne des faux positifs :
+        « all » se trouve dans « querySelectorAll ». Seul le texte rendu compte.
+        """
+        return re.sub(r"<(style|script)\b.*?</\1>", "", page, flags=re.S | re.I)
+
+    def _leaks(self, rendered: str, other: str) -> list[str]:
+        """Chaines propres a l'autre langue trouvees dans le texte rendu."""
+        body = self.visible(self.page(rendered))
+        found = []
+        for key, entry in i18n.STRINGS.items():
+            if not key.startswith("cat_"):
+                continue
+            mine, theirs = entry[rendered], entry[other]
+            if mine == theirs or "{" in theirs:
+                continue          # identiques, ou gabarit a trous
+            if theirs in body:
+                found.append(key)
+        return found
+
+    def test_the_english_page_holds_no_french(self) -> None:
+        self.assertEqual(self._leaks("en", "fr"), [])
+
+    def test_the_french_page_holds_no_english(self) -> None:
+        self.assertEqual(self._leaks("fr", "en"), [])
+
+    def test_no_stray_html_entity_from_the_french_original(self) -> None:
+        """« publi&eacute; » etait reste code en dur : aucune entite accentuee
+        ne doit subsister dans la page anglaise."""
+        page = self.visible(self.page("en"))
+        for entity in ("&eacute;", "&egrave;", "&agrave;", "&ccedil;", "&icirc;"):
+            self.assertNotIn(entity, page, entity)

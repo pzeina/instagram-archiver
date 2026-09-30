@@ -338,6 +338,39 @@ def status(username: str, *, force: bool = False, recover: bool = True) -> dict:
     return result
 
 
+def connect(username: str = "") -> dict:
+    """Verifie la session gardee, et a defaut en prend une dans le navigateur.
+
+    Appelee uniquement quand l'utilisateur appuie sur « Connecter le compte » :
+    l'interface ne verifie plus rien d'elle-meme. Deux requetes au maximum, a un
+    moment choisi, plutot qu'un controle de fond dont personne n'a demande le
+    resultat -- et qui finissait par faire limiter le compte.
+    """
+    checked = _probe(username) if username else None
+    if checked and checked["valid"]:
+        invalidate(username)
+        return {**checked, "checked": True, "message": f"Connecte au compte {checked['account']}."}
+
+    try:
+        account, _ = open_auto(username)
+    except SessionError as exc:
+        if checked and not checked["reachable"]:
+            # Instagram refuse de repondre : ne rien conclure sur la session.
+            return {**checked, "checked": True, "message":
+                    "Instagram n'a pas repondu — le compte est momentanement limite. "
+                    "Reessayez dans quelques minutes."}
+        return {"exists": bool(checked and checked["exists"]), "valid": False,
+                "account": None, "reachable": True, "checked": True,
+                "error": str(exc), "message": str(exc).splitlines()[0]}
+
+    result = _probe(account)
+    invalidate(account)
+    return {**result, "checked": True,
+            "message": (f"Connecte au compte {account}." if result["valid"] else
+                        "Session ouverte mais Instagram ne l'a pas confirmee. "
+                        "Reessayez dans quelques minutes.")}
+
+
 def invalidate(username: str | None = None) -> None:
     """Oblige la prochaine lecture a reverifier -- apres toute action sur la session."""
     with _status_lock:

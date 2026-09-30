@@ -26,7 +26,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable
 
-from igarchive import __version__, catalog, config as config_module, dyi, fetch, paths, session
+from igarchive import __version__, catalog, config as config_module, dyi, fetch, i18n, paths, session
 from igarchive.config import Config
 from igarchive.jobs import JobRunner
 
@@ -44,21 +44,17 @@ class AppState:
         self.runner = JobRunner()
         self.token = secrets.token_urlsafe(24)
         self.lock = threading.Lock()
+        # Resultat du dernier « Connecter le compte ». Tant qu'il est None,
+        # l'interface ne sait rien et ne pretend rien : elle n'interroge jamais
+        # Instagram d'elle-meme.
+        self.checked: dict[str, Any] | None = None
 
     # -- vue d'ensemble --------------------------------------------------
 
     def snapshot(self) -> dict[str, Any]:
         cfg = self.config
-        state = session.status(cfg.username) if cfg.username else {
-            "exists": False, "valid": False, "account": None, "reachable": True}
-
-        # La session a ete renouvelee dans le navigateur, peut-etre sur un autre
-        # compte : c'est lui le compte actif desormais.
-        recovered = state.get("recovered")
-        if recovered and recovered != cfg.username:
-            cfg.username = recovered
-            cfg.save()
-
+        state = self.checked or {"checked": False, "valid": False,
+                                 "account": None, "exists": bool(cfg.username)}
         return {
             "version": __version__,
             "platform": "macOS" if paths.is_macos() else "Linux",
@@ -146,13 +142,14 @@ def action_session_browser(state: AppState, body: dict) -> dict:
             "message": f"Session ouverte pour « {account} »."}
 
 
-def action_session_auto(state: AppState, body: dict) -> dict:
-    """Connecte sans rien demander : le navigateur est trouve, pas choisi."""
-    account, path = session.open_auto(str(body.get("username") or ""))
-    state.config.username = account
-    state.config.save()
-    return {"ok": True, "account": account, "file": str(path),
-            "message": f"Connecte au compte {account}."}
+def action_session_connect(state: AppState, body: dict) -> dict:
+    """Le seul endroit ou Instagram est interroge au sujet de la session."""
+    result = session.connect(str(body.get("username") or state.config.username))
+    state.checked = result
+    if result.get("account") and result["account"] != state.config.username:
+        state.config.username = result["account"]
+        state.config.save()
+    return {"ok": True, **result}
 
 
 def action_session_use(state: AppState, body: dict) -> dict:
@@ -162,8 +159,10 @@ def action_session_use(state: AppState, body: dict) -> dict:
         raise ValueError(f"Aucune session enregistree pour {username}.")
     state.config.username = username
     state.config.save()
+    state.checked = None          # un autre compte demande une nouvelle verification
     session.invalidate(username)
-    return {"ok": True, "account": username, "message": f"Compte actif : {username}."}
+    return {"ok": True, "account": username,
+            "message": i18n.t("active_account", state.config.language, account=username)}
 
 
 def action_session_cookie(state: AppState, body: dict) -> dict:
@@ -191,14 +190,16 @@ def action_session_password(state: AppState, body: dict) -> dict:
 def action_session_forget(state: AppState, body: dict) -> dict:
     username = str(body.get("username") or state.config.username)
     removed = session.forget(username)
+    state.checked = None
     return {"ok": True, "removed": removed,
-            "message": "Session oubliee." if removed else "Aucune session a oublier."}
+            "message": i18n.t("session_forgotten" if removed else "no_session_to_forget",
+                              state.config.language)}
 
 
 def action_dyi(state: AppState, body: dict) -> dict:
     raw = str(body.get("path") or "").strip().strip("'\"")
     if not raw:
-        raise ValueError("Indique le chemin du fichier .zip recu d'Instagram.")
+        raise ValueError(i18n.t("give_export_path", state.config.language))
     return ingest_export(state, Path(raw).expanduser())
 
 
@@ -214,14 +215,17 @@ def ingest_exports(state: AppState, sources: list[Path]) -> dict:
 
     cfg = state.config
     cfg.ensure_dirs()
-    built = catalog.build(cfg.archive, cfg.metadata_dir, merged)
+    built = catalog.build(cfg.archive, cfg.metadata_dir, merged, cfg.language)
     names = sorted(built.get("collections", {}))
-    detail = f" {len(names)} collections : {', '.join(names)}." if names else ""
+    lang = cfg.language
+    detail = (i18n.t("collections_found", lang, count=len(names), names=", ".join(names))
+              if names else "")
     return {"ok": True, "total": len(merged), "added": added,
             "collections": built.get("collections", {}),
             "dated": built["dated"],
-            "message": (f"{len(merged)} contenus dates, dont {added} nouveaux.{detail} "
-                        f"Catalogue mis a jour : {built['dated']} fiches datees.")}
+            "message": (i18n.t("dated_items", lang, total=len(merged), added=added)
+                        + detail + " "
+                        + i18n.t("catalogue_updated", lang, dated=built["dated"]))}
 
 
 def ingest_export(state: AppState, source: Path) -> dict:
@@ -247,14 +251,17 @@ def action_dyi_auto(state: AppState, body: dict) -> dict:
 def action_catalog(state: AppState, body: dict) -> dict:
     cfg = state.config
     cfg.ensure_dirs()
-    result = catalog.build(cfg.archive, cfg.metadata_dir, fetch.read_saved_dates(cfg))
+    result = catalog.build(cfg.archive, cfg.metadata_dir,
+                          fetch.read_saved_dates(cfg), cfg.language)
     return {"ok": True, **result,
             "message": f"Catalogue reconstruit : {result['count']} contenus."}
 
 
 def action_fetch_start(state: AppState, body: dict) -> dict:
     cfg = state.config
-    problems = cfg.problems()
+    if not (state.checked and state.checked.get("valid")):
+        raise ValueError(i18n.t("connect_first", cfg.language))
+    problems = [p["text"] for p in cfg.problems_detail() if p["step"] != 1]
     if problems:
         raise ValueError(" ".join(problems))
     dry_run = bool(body.get("dry_run"))
@@ -271,9 +278,9 @@ def action_fetch_start(state: AppState, body: dict) -> dict:
             found = dyi.find_exports([cfg.archive], search_home=False)
             if found:
                 result = ingest_exports(state, found)
-                runner.log(f"Export officiel lu : {result['message']}")
+                runner.log(i18n.t("export_read", cfg.language, message=result["message"]))
         except (dyi.ExportError, OSError, ValueError) as exc:
-            runner.log(f"Export officiel ignore : {exc}")
+            runner.log(i18n.t("export_skipped", cfg.language, error=exc))
 
         last = {"done": -1, "failed": -1, "skipped": -1}
 
@@ -293,20 +300,24 @@ def action_fetch_start(state: AppState, body: dict) -> dict:
         if result.message:
             runner.log(result.message)
         session.invalidate(cfg.username)
+        if result.error and "session" in result.error.lower():
+            state.checked = None
         if not dry_run and result.done:
             built = catalog.build(cfg.archive, cfg.metadata_dir,
-                                  fetch.read_saved_dates(cfg))
-            runner.log(f"Catalogue reconstruit : {built['count']} contenus.")
+                                  fetch.read_saved_dates(cfg), cfg.language)
+            runner.log(i18n.t("catalogue_rebuilt", cfg.language, count=built["count"]))
 
-    label = "Simulation" if dry_run else "Archivage"
+    label = i18n.t("dry_run" if dry_run else "backup", cfg.language)
     if not runner.start(work, label=label):
-        raise ValueError("Une tache est deja en cours.")
-    return {"ok": True, "message": f"{label} demarre."}
+        raise ValueError(i18n.t("already_running", cfg.language))
+    return {"ok": True, "message": i18n.t("started", cfg.language, label=label)}
 
 
 def action_fetch_cancel(state: AppState, body: dict) -> dict:
     stopped = state.runner.cancel()
-    return {"ok": True, "message": "Arret demande." if stopped else "Aucune tache en cours."}
+    return {"ok": True,
+            "message": i18n.t("stop_requested" if stopped else "nothing_running",
+                              state.config.language)}
 
 
 def action_open(state: AppState, body: dict) -> dict:
@@ -316,16 +327,16 @@ def action_open(state: AppState, body: dict) -> dict:
               "html": cfg.archive / "index.html",
               "csv": cfg.archive / "catalog.csv"}.get(what, cfg.archive)
     if not target.exists():
-        raise ValueError(f"Rien a ouvrir : {target} n'existe pas encore.")
+        raise ValueError(i18n.t("nothing_to_open", cfg.language, path=target))
     if not paths.open_in_browser(str(target)):
-        raise ValueError(f"Impossible d'ouvrir automatiquement. Chemin : {target}")
-    return {"ok": True, "message": f"Ouvert : {target}"}
+        raise ValueError(i18n.t("cannot_open", cfg.language, path=target))
+    return {"ok": True, "message": i18n.t("opened", cfg.language, path=target)}
 
 
 ACTIONS: dict[str, Callable[[AppState, dict], dict]] = {
     "/api/config": action_save_config,
     "/api/session/browser": action_session_browser,
-    "/api/session/auto": action_session_auto,
+    "/api/session/connect": action_session_connect,
     "/api/session/use": action_session_use,
     "/api/session/cookie": action_session_cookie,
     "/api/session/password": action_session_password,

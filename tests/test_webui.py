@@ -16,7 +16,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from igarchive import webui
+from igarchive import i18n, webui
 
 
 class ServerCase(unittest.TestCase):
@@ -137,9 +137,11 @@ class ErrorHandling(ServerCase):
             self.assertEqual(error.code, 400)
 
     def test_starting_without_a_session_explains_why(self) -> None:
+        """On verifie le message employe, pas sa formulation : elle change avec
+        la langue et il n'y a rien a apprendre d'une chaine figee."""
         status, payload = self.call("/api/fetch/start", {})
         self.assertEqual(status, 400)
-        self.assertIn("compte", payload["error"].lower())
+        self.assertEqual(payload["error"], i18n.t("connect_first", "en"))
 
     def test_reading_an_absent_export_explains_why(self) -> None:
         status, payload = self.call("/api/dyi", {"path": "/introuvable/export.zip"})
@@ -149,12 +151,14 @@ class ErrorHandling(ServerCase):
     def test_opening_something_that_does_not_exist_explains_why(self) -> None:
         status, payload = self.call("/api/open", {"what": "html"})
         self.assertEqual(status, 400)
-        self.assertIn("existe pas", payload["error"])
+        expected = i18n.t("nothing_to_open", "en",
+                          path=Path(self.state.config.archive_dir) / "index.html")
+        self.assertEqual(payload["error"], expected)
 
     def test_cancelling_with_no_job_running_is_not_an_error(self) -> None:
         status, payload = self.call("/api/fetch/cancel", {})
         self.assertEqual(status, 200)
-        self.assertIn("Aucune", payload["message"])
+        self.assertEqual(payload["message"], i18n.t("nothing_running", "en"))
 
 
 class Catalogue(ServerCase):

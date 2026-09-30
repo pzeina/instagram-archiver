@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from igarchive import paths
+from igarchive import i18n, paths
 
 SCHEMA_VERSION = 2
 
@@ -29,7 +29,7 @@ CSV_COLUMNS = [
 IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp")
 
 COLLECTIONS_DIR = "collections"
-UNSORTED_NAME = "Sans collection"
+UNSORTED_NAME = "No collection"   # nom de dossier, volontairement stable
 
 
 @dataclass
@@ -345,7 +345,7 @@ def _plural(count: int, singular: str, plural: str | None = None) -> str:
     return singular if count <= 1 else (plural or singular + "s")
 
 
-def _card(record: dict) -> str:
+def _card(record: dict, lang: str) -> str:
     def esc(value: Any) -> str:
         return html.escape("" if value is None else str(value), quote=True)
 
@@ -360,7 +360,7 @@ def _card(record: dict) -> str:
     elif poster:
         preview = f'<img loading="lazy" src="{esc(poster)}" alt="">'
     else:
-        preview = '<div class="nomedia">aucun media</div>'
+        preview = f'<div class="nomedia">{esc(i18n.t("cat_no_media", lang))}</div>'
 
     caption = record.get("caption") or ""
 
@@ -369,14 +369,15 @@ def _card(record: dict) -> str:
     # un « rang 3 » que rien n'explique.
     saved_at = (record.get("saved_at") or "")[:10]
     if saved_at:
-        saved_html = (f'<span title="date d\'enregistrement">enregistr&eacute; le'
+        saved_html = (f'<span>{esc(i18n.t("cat_saved_on", lang))}'
                       f'<i>{esc(saved_at)}</i></span>')
     else:
-        rank = record.get("saved_rank")
-        position = "1er" if rank == 0 else f"{(rank or 0) + 1}e"
-        saved_html = ('<span class="approx" title="Date exacte disponible apres import '
-                      f'de l\'export officiel Instagram">enregistr&eacute;'
-                      f'<i>{position} de la liste</i></span>')
+        rank = (record.get("saved_rank") or 0) + 1
+        position = (f"{rank}{'st' if rank == 1 else 'nd' if rank == 2 else 'rd' if rank == 3 else 'th'}"
+                    if lang == "en" else ("1er" if rank == 1 else f"{rank}e"))
+        saved_html = (f'<span class="approx" title="{esc(i18n.t("cat_rank_hint", lang))}">'
+                      f'{esc(i18n.t("cat_saved_rank", lang))}'
+                      f'<i>{esc(i18n.t("cat_rank_value", lang, position=position))}</i></span>')
 
     collections = [c for c in (record.get("collections") or []) if c]
     if not collections and record.get("collection"):
@@ -403,7 +404,7 @@ def _card(record: dict) -> str:
           <span class="kind">{esc(record.get('kind'))}</span>
         </div>
         <div class="dates">
-          <span title="date de publication">publi&eacute;<i>{esc((record.get('posted_at_utc') or '')[:10])}</i></span>
+          <span>{esc(i18n.t("cat_posted", lang))}<i>{esc((record.get('posted_at_utc') or '')[:10])}</i></span>
           {saved_html}
         </div>
         <div class="colls">{collection_html}</div>
@@ -412,11 +413,12 @@ def _card(record: dict) -> str:
       </article>"""
 
 
-def write_html_catalog(archive: Path, records: list[dict]) -> Path:
+def write_html_catalog(archive: Path, records: list[dict],
+                       lang: str = i18n.DEFAULT_LANGUAGE) -> Path:
     def esc(value: Any) -> str:
         return html.escape("" if value is None else str(value), quote=True)
 
-    total = paths.human_bytes(sum(r.get("bytes_total", 0) for r in records))
+    total = paths.human_bytes(sum(r.get("bytes_total", 0) for r in records), lang)
     dated = sum(1 for r in records if r.get("saved_at"))
     kinds = sorted({r.get("kind") or "?" for r in records})
     collections = sorted({name for r in records for name in (r.get("collections") or [])
@@ -426,41 +428,38 @@ def write_html_catalog(archive: Path, records: list[dict]) -> Path:
     filters = "".join(
         f'<button data-filter="{esc(k)}">{esc(k)}</button>' for k in kinds
     )
+    L = lambda key, **kw: esc(i18n.t(key, lang, **kw))  # noqa: E731
     options = "".join(
         f'<option value="{esc(c)}">{esc(c)}</option>' for c in collections
     )
     if undated or not collections:
-        options += '<option value="__none__">sans collection</option>'
+        options += f'<option value="__none__">{L("cat_no_collection")}</option>'
 
     banner = ""
     if undated:
-        banner = (
-            f'<p class="banner"><b>{undated} contenu(s) sans date d\'enregistrement.</b> '
-            "Instagram n'expose pas cette date&nbsp;; seul son export officiel la contient. "
-            "Une fois l'export import&eacute;, cette page affichera "
-            "« enregistr&eacute; le&nbsp;&hellip; » au lieu de l'ordre, et les collections "
-            "appara&icirc;tront ici.</p>")
-    cards = "".join(_card(r) for r in records)
-    body = cards or '<p class="empty">Aucun contenu archive pour le moment.</p>'
+        banner = ('<p class="banner">'
+                  + i18n.t("cat_banner", lang, count=undated) + "</p>")
+    cards = "".join(_card(r, lang) for r in records)
+    body = cards or f'<p class="empty">{L("cat_empty")}</p>'
 
     target = archive / "index.html"
     target.write_text(f"""<!doctype html>
-<html lang="fr"><head><meta charset="utf-8">
+<html lang="{lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Archive Instagram</title>
+<title>{L("cat_title")}</title>
 <style>{PAGE_CSS}</style></head><body>
 <header><div class="wrap">
-  <h1>Contenus enregistr&eacute;s</h1>
+  <h1>{L("cat_title")}</h1>
   <div class="ledger">
-    <span><b id="count">{len(records)}</b>sur {len(records)} {_plural(len(records), "contenu")}</span>
-    <span><b>{total}</b>sur le disque</span>
-    <span><b>{dated}</b>{_plural(dated, "date", "dates")} d'enregistrement</span>
-    <span><b>{len(collections)}</b>{_plural(len(collections), "collection")}</span>
+    <span><b id="count">{len(records)}</b>{L("cat_of", total=len(records))}</span>
+    <span><b>{total}</b>{L("cat_on_disk")}</span>
+    <span><b>{dated}</b>{L("cat_dates")}</span>
+    <span><b>{len(collections)}</b>{L("cat_collections")}</span>
   </div>
   <div class="controls">
-    <input type="search" id="q" placeholder="Rechercher un auteur, une l&eacute;gende, un hashtag">
-    <select id="coll"><option value="">toutes les collections</option>{options}</select>
-    <button data-filter="" class="on">tout</button>{filters}
+    <input type="search" id="q" placeholder="{L("cat_search")}">
+    <select id="coll"><option value="">{L("cat_all_collections")}</option>{options}</select>
+    <button data-filter="" class="on">{L("cat_all")}</button>{filters}
   </div>
   {banner}
 </div></header>
@@ -471,7 +470,8 @@ def write_html_catalog(archive: Path, records: list[dict]) -> Path:
 
 
 def build(archive: Path, metadata_dir: Path,
-          saved_dates: dict[str, dict] | None = None) -> dict[str, Any]:
+          saved_dates: dict[str, dict] | None = None,
+          lang: str = i18n.DEFAULT_LANGUAGE) -> dict[str, Any]:
     """Reconstruit les trois sorties. Rend un resume pour l'appelant."""
     archive.mkdir(parents=True, exist_ok=True)
     patched = apply_saved_dates(metadata_dir, saved_dates) if saved_dates else 0
@@ -487,5 +487,5 @@ def build(archive: Path, metadata_dir: Path,
         "bytes": sum(r.get("bytes_total", 0) for r in records),
         "json": str(write_json_catalog(archive, records)),
         "csv": str(write_csv_catalog(archive, records)),
-        "html": str(write_html_catalog(archive, records)),
+        "html": str(write_html_catalog(archive, records, lang)),
     }

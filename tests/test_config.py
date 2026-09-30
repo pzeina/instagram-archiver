@@ -77,3 +77,27 @@ class ProblemsPointAtTheRightStep(unittest.TestCase):
     def test_the_plain_list_still_reads_the_same(self) -> None:
         cfg = config_module.Config(username="x", sleep_min=9, sleep_max=2)
         self.assertEqual(cfg.problems(), [i["text"] for i in cfg.problems_detail()])
+
+
+class LanguageDefaultsToEnglish(unittest.TestCase):
+    def test_a_fresh_install_speaks_english(self) -> None:
+        from igarchive import i18n
+        self.assertEqual(config_module.Config().language, i18n.DEFAULT_LANGUAGE)
+        self.assertEqual(i18n.DEFAULT_LANGUAGE, "en")
+
+    def test_every_string_exists_in_both_languages(self) -> None:
+        """Une traduction manquante doit tomber au test, pas devant l'utilisateur."""
+        from igarchive import i18n
+        incomplete = {key for key, entry in i18n.STRINGS.items()
+                      if set(entry) != set(i18n.LANGUAGES)}
+        self.assertEqual(incomplete, set())
+
+    def test_an_unsupported_language_falls_back_instead_of_breaking(self) -> None:
+        from igarchive import i18n
+        self.assertEqual(i18n.normalise("de"), "en")
+        self.assertEqual(i18n.normalise(None), "en")
+        self.assertEqual(i18n.normalise("FR"), "fr")
+
+    def test_an_unknown_key_is_visible_rather_than_silent(self) -> None:
+        from igarchive import i18n
+        self.assertEqual(i18n.t("pas_une_cle"), "[pas_une_cle]")

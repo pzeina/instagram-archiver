@@ -30,7 +30,7 @@ class Config:
     stop_after_known: int = 0        # 0 = parcourir toute la bibliotheque
     limit_per_run: int = 0           # 0 = pas de plafond
     webui_port: int = 8765
-    language: str = "fr"
+    language: str = "en"
 
     # -- chemins derives -------------------------------------------------
 

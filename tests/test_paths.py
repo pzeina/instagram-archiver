@@ -87,10 +87,15 @@ class Opening(unittest.TestCase):
 
 
 class HumanSizes(unittest.TestCase):
-    def test_reads_the_way_a_person_expects(self) -> None:
-        for value, expected in [(0, "0 o"), (999, "999 o"), (15_600_000, "14.9 Mo"),
-                                (2.1e10, "19.6 Go")]:
+    def test_reads_the_way_an_english_speaker_expects(self) -> None:
+        for value, expected in [(0, "0 B"), (999, "999 B"), (15_600_000, "14.9 MB"),
+                                (2.1e10, "19.6 GB")]:
             self.assertEqual(paths.human_bytes(value), expected)
+
+    def test_french_uses_octets(self) -> None:
+        """« byte » se dit « octet » : l'abreviation doit suivre la langue."""
+        self.assertEqual(paths.human_bytes(15_600_000, "fr"), "14.9 Mo")
+        self.assertEqual(paths.human_bytes(0, "fr"), "0 o")
 
 
 if __name__ == "__main__":

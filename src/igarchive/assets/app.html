@@ -29,6 +29,34 @@
   h1 { font-size:1.375rem; font-weight:600; letter-spacing:-.02em; margin:0; }
   .sub { color:var(--ink-2); font-size:.875rem; margin:.3rem 0 0; }
   .ver { float:right; font:.75rem/1.6 var(--mono); color:var(--ink-3); }
+  .gear { float:right; margin-left:.6rem; padding:.25rem; border:0; background:none;
+    color:var(--ink-3); line-height:0; border-radius:3px; }
+  .gear:hover { color:var(--signal); background:none; }
+  .gear svg { width:1.05rem; height:1.05rem; display:block; }
+  .lang { display:inline-flex; align-items:center; gap:.3rem; line-height:1;
+    font:.75rem/1 var(--mono); padding:.3rem .4rem; }
+  .lang span:first-child { font-size:.95rem; }
+
+  dialog { border:1px solid var(--rule-2); border-radius:4px; background:var(--panel);
+    color:var(--ink); padding:0; max-width:29rem; width:calc(100% - 2rem); }
+  dialog::backdrop { background:rgba(20,22,26,.45); }
+  .dlg { padding:1.25rem 1.4rem 1.4rem; }
+  .dlg h2 { font-size:1rem; font-weight:600; margin:0 0 .3rem; }
+  .dlg > p { font-size:.8125rem; color:var(--ink-2); margin:0 0 1.1rem; }
+  .set { display:grid; grid-template-columns:8rem 1fr; gap:.5rem 1rem;
+    align-items:center; padding:.3rem 0; }
+  .set > span { font-size:.8125rem; color:var(--ink-2); }
+  .set .v { display:flex; gap:.45rem; align-items:center; flex-wrap:wrap; }
+  input[type=number] { width:4.4rem; font-family:var(--mono); font-size:13px;
+    padding:.4rem .5rem; border:1px solid var(--rule-2); border-radius:3px;
+    background:var(--field); color:var(--ink); }
+  .unit { font-size:.75rem; color:var(--ink-3); }
+  .dlg .checks { display:flex; gap:1.1rem; flex-wrap:wrap; }
+  .dlg .check { display:flex; align-items:center; gap:.4rem; font-size:.8125rem; }
+  .dlg .check input { accent-color:var(--signal); width:.9rem; height:.9rem; }
+  .dlg footer { display:flex; gap:.5rem; justify-content:flex-end; margin-top:1.3rem;
+    padding-top:1rem; border-top:1px solid var(--rule); }
+  @media (max-width:28rem) { .set { grid-template-columns:1fr; gap:.2rem; } }
 
   .block { margin-top:2.25rem; padding-top:1.5rem; border-top:1px solid var(--rule); }
   .key { font-size:.8125rem; color:var(--ink-2); margin:0 0 .5rem; }
@@ -105,64 +133,63 @@
 <body>
 <main class="sheet">
 
+<button class="gear lang" id="btn-lang" title="Passer en français"><span id="flag">🇬🇧</span><span id="langcode">EN</span></button>
+<button class="gear" id="btn-settings" title="Advanced settings" aria-label="Advanced settings" data-t-title="adv_title">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="3.2"/>
+    <path d="M12 2.2v2.6M12 19.2v2.6M21.8 12h-2.6M4.8 12H2.2M18.9 5.1l-1.8 1.8M6.9 17.1l-1.8 1.8M18.9 18.9l-1.8-1.8M6.9 6.9L5.1 5.1"/>
+  </svg>
+</button>
 <span class="ver" id="ver"></span>
 <h1>igarchive</h1>
-<p class="sub">Sauvegarde locale de vos contenus Instagram enregistrés.</p>
+<p class="sub" data-t="tagline">Local backup of your saved Instagram content.</p>
 
 <!-- compte ------------------------------------------------------------ -->
 <section class="block">
-  <p class="key">Compte Instagram</p>
+  <p class="key" data-t="account_label">Instagram account</p>
 
   <div class="line" id="have-session" hidden>
     <select id="account"></select>
-    <span class="state" id="st-account">…</span>
   </div>
-  <p class="hint" id="reconnect-hint" hidden>
-    Cette session n'est plus valable. Reconnectez-vous sur
+  <p class="state" id="st-account" style="margin:.7rem 0 0">…</p>
+  <p class="hint" id="login-hint" hidden><span data-t="login_hint">Sign in at</span>
     <a href="https://www.instagram.com/accounts/login/" target="_blank"
-       rel="noopener">instagram.com</a> : la nouvelle session sera reprise toute seule,
-    sans rien avoir à faire ici.
-  </p>
-
-  <div id="no-session" hidden>
-    <p class="hint" style="margin-top:0">Aucun compte connecté. Ouvrez
-      <a href="https://www.instagram.com/accounts/login/" target="_blank"
-         rel="noopener">la page de connexion Instagram</a>, connectez-vous,
-      puis revenez appuyer sur le bouton ci-dessous.</p>
-  </div>
+       rel="noopener">instagram.com</a><span data-t="login_hint_end">, then press the
+    button again.</span></p>
 
   <div class="line" style="margin-top:.7rem">
-    <button id="btn-connect">Connecter ce navigateur</button>
+    <button class="main" id="btn-connect" style="width:auto;margin-top:0" data-t="connect">Connect the account</button>
   </div>
   <div class="msg" id="msg-session"></div>
 </section>
 
 <!-- archive ----------------------------------------------------------- -->
 <section class="block">
-  <p class="key"><label for="archive_dir">Dossier de sauvegarde</label></p>
+  <p class="key"><label for="archive_dir" data-t="folder_label">Backup folder</label></p>
   <div class="line">
     <input type="text" id="archive_dir" placeholder="~/InstagramArchive">
-    <button id="btn-folder">Ouvrir</button>
+    <button id="btn-folder" data-t="open">Open</button>
   </div>
   <p class="facts" id="facts">…</p>
 </section>
 
 <!-- action ------------------------------------------------------------ -->
 <section>
-  <button class="main" id="btn-start">Télécharger ma bibliothèque</button>
+  <button class="main" id="btn-start">Back up my library</button>
 
   <div class="running" id="running" hidden>
     <div class="tally">
-      <div><b id="p-done">0</b>enregistrés</div>
-      <div><b id="p-skipped">0</b>déjà là</div>
-      <div><b id="p-failed">0</b>en échec</div>
+      <div><b id="p-done">0</b><span data-t="c_saved">saved</span></div>
+      <div><b id="p-skipped">0</b><span data-t="c_known">already there</span></div>
+      <div><b id="p-failed">0</b><span data-t="c_failed">failed</span></div>
     </div>
     <p class="now" id="current"></p>
-    <div class="line"><button id="btn-stop">Arrêter</button></div>
+    <div class="line"><button id="btn-stop" data-t="stop">Stop</button></div>
   </div>
 
   <div class="line" id="done-actions" style="margin-top:1rem" hidden>
-    <button id="btn-html">Ouvrir le catalogue</button>
+    <button id="btn-html" data-t="open_catalogue">Open the catalogue</button>
   </div>
   <div class="msg" id="msg"></div>
   <p class="hint" id="export-note" hidden></p>
@@ -170,50 +197,231 @@
 
 <!-- panneau dépliant --------------------------------------------------- -->
 <details>
-  <summary>Détails et messages</summary>
+  <summary data-t="details">Details and messages</summary>
   <div class="drawer">
-    <h3>Journal</h3>
+    <h3 data-t="log">Log</h3>
     <div class="log" id="log"></div>
-    <p class="none">Rien pour le moment.</p>
+    <p class="none" data-t="log_empty">Nothing yet.</p>
 
-    <h3>Se connecter autrement</h3>
-    <p class="hint" style="margin-top:0">Si la détection échoue, collez le cookie
-       <code>sessionid</code> d'instagram.com (outils de développement → Application →
-       Cookies).</p>
-    <textarea id="cookie" placeholder="sessionid=…"></textarea>
+    <h3 data-t="other_way">Another way to connect</h3>
+    <p class="hint" style="margin-top:0" data-t="cookie_hint">If detection fails, paste
+       the sessionid cookie from instagram.com (developer tools → Application → Cookies).</p>
+    <textarea id="cookie" placeholder="sessionid=…" data-t-ph="cookie_ph"></textarea>
     <div class="line" style="margin-top:.5rem">
-      <button id="btn-cookie">Utiliser ce cookie</button>
-      <button id="btn-forget">Oublier cette session</button>
+      <button id="btn-cookie" data-t="use_cookie">Use this cookie</button>
+      <button id="btn-forget" data-t="forget">Forget this session</button>
     </div>
     <div class="msg" id="msg-cookie"></div>
 
-    <h3>Export officiel Instagram</h3>
-    <p class="hint" style="margin-top:0">Il contient les dates d'enregistrement et vos
-       collections, que rien d'autre ne fournit. Choisissez le <code>.zip</code> ici, ou
-       posez-le simplement dans votre dossier de sauvegarde : il sera lu au prochain
-       téléchargement.</p>
+    <h3 data-t="export_title">Instagram official export</h3>
+    <p class="hint" style="margin-top:0" data-t="export_hint">It holds your save dates
+       and collections, which nothing else provides. Choose the .zip here, or simply drop
+       it in your backup folder: it will be read on the next backup.</p>
     <div class="line">
       <input type="file" id="export-file" accept=".zip" class="pick">
-      <label class="asbtn" for="export-file">Choisir le fichier…</label>
-      <span class="picked" id="picked">aucun fichier</span>
-      <button id="btn-upload">Lire</button>
+      <label class="asbtn" for="export-file" data-t="choose">Choose the file…</label>
+      <span class="picked" id="picked" data-t="no_file">no file</span>
+      <button id="btn-upload" data-t="read">Read</button>
     </div>
     <div class="msg" id="msg-dyi"></div>
 
-    <h3>Emplacement des fichiers</h3>
+    <h3 data-t="where">File locations</h3>
     <p class="hint" style="margin-top:0" id="paths"></p>
   </div>
 </details>
 
-<p class="foot">Tout reste sur cette machine. Pour les réglages fins — rythme, plafonds,
-   commentaires — utilisez <code>igarchive --help</code> au terminal.</p>
+<p class="foot" data-t="foot">Everything stays on this machine. igarchive --help lists
+   what the terminal can do beyond this page.</p>
+
+<dialog id="settings">
+  <form method="dialog" class="dlg">
+    <h2 data-t="adv_title">Advanced settings</h2>
+    <p data-t="adv_intro">The defaults suit everyone. Change them only if you know
+       what you are doing.</p>
+
+    <div class="set">
+      <span data-t="s_pause">Pause</span>
+      <div class="v">
+        <input type="number" id="sleep_min" min="1" step="0.5" aria-label="pause minimale">
+        <span class="unit" data-t="s_to">to</span>
+        <input type="number" id="sleep_max" min="1" step="0.5" aria-label="pause maximale">
+        <span class="unit" data-t="s_seconds">seconds between items</span>
+      </div>
+    </div>
+    <div class="set">
+      <span data-t="s_limit">Limit</span>
+      <div class="v"><input type="number" id="limit_per_run" min="0" step="10">
+        <span class="unit" data-t="s_limit_unit">items per pass — 0 for all</span></div>
+    </div>
+    <div class="set">
+      <span data-t="s_stop">Stop</span>
+      <div class="v"><input type="number" id="stop_after_known" min="0" step="5">
+        <span class="unit" data-t="s_stop_unit">after N already known — 0 to scan everything</span></div>
+    </div>
+    <div class="set">
+      <span data-t="s_get">Retrieve</span>
+      <div class="checks">
+        <label class="check"><input type="checkbox" id="download_videos"> <span data-t="s_videos">videos</span></label>
+        <label class="check"><input type="checkbox" id="download_thumbnails"> <span data-t="s_thumbs">thumbnails</span></label>
+        <label class="check"><input type="checkbox" id="download_comments"> <span data-t="s_comments">comments</span></label>
+      </div>
+    </div>
+
+    <p class="hint" data-t="adv_warn">Shortening the pauses is the surest way to get
+       your account rate limited by Instagram. Expect about an hour per 500 items.</p>
+
+    <footer>
+      <button value="cancel" data-t="cancel">Cancel</button>
+      <button value="save" id="btn-settings-save" class="main"
+              style="width:auto;margin-top:0" data-t="save">Save</button>
+    </footer>
+  </form>
+</dialog>
 
 </main>
 
 <script>
 const TOKEN = "__TOKEN__";
+
+// Traductions de l'interface. Le serveur a les siennes (i18n.py) pour ce qu'il
+// compose lui-meme ; ici vit ce que la page rend directement.
+const T = {
+  en: {
+    tagline: "Local backup of your saved Instagram content.",
+    account_label: "Instagram account",
+    login_hint: "Sign in at", login_hint_end: ", then press the button again.",
+    connect: "Connect the account", recheck: "Check again",
+    st_unverified: "account not verified", st_connected: "connected: ",
+    folder_label: "Backup folder", open: "Open",
+    backup: "Back up my library", update: "Update my library",
+    running: "Backing up…",
+    c_saved: "saved", c_known: "already there", c_failed: "failed",
+    stop: "Stop", open_catalogue: "Open the catalogue",
+    details: "Details and messages", log: "Log", log_empty: "Nothing yet.",
+    other_way: "Another way to connect",
+    cookie_hint: "If detection fails, paste the sessionid cookie from instagram.com " +
+      "(developer tools → Application → Cookies).",
+    cookie_ph: "sessionid=…",
+    use_cookie: "Use this cookie", forget: "Forget this session",
+    export_title: "Instagram official export",
+    export_hint: "It holds your save dates and collections, which nothing else " +
+      "provides. Choose the .zip here, or simply drop it in your backup folder: " +
+      "it will be read on the next backup.",
+    choose: "Choose the file…", no_file: "no file", read: "Read",
+    where: "File locations",
+    foot: "Everything stays on this machine. igarchive --help lists what the " +
+      "terminal can do beyond this page.",
+    adv_title: "Advanced settings",
+    adv_intro: "The defaults suit everyone. Change them only if you know what you " +
+      "are doing.",
+    s_pause: "Pause", s_to: "to", s_seconds: "seconds between items",
+    s_limit: "Limit", s_limit_unit: "items per pass — 0 for all",
+    s_stop: "Stop", s_stop_unit: "after N already known — 0 to scan everything",
+    s_get: "Retrieve", s_videos: "videos", s_thumbs: "thumbnails",
+    s_comments: "comments",
+    adv_warn: "Shortening the pauses is the surest way to get your account rate " +
+      "limited by Instagram. Expect about an hour per 500 items.",
+    cancel: "Cancel", save: "Save",
+    facts_empty: "Folder is empty.",
+    facts_none: "The folder will be created on the first backup.",
+    facts_last: " — last backup ",
+    today: "today", yesterday: "yesterday", days_ago: "{n} days ago", on_date: "on ",
+    connect_first: "Connect the account to start the backup.",
+    checking: "Checking with Instagram…",
+    folder_saved: "Folder saved.", settings_saved: "Settings saved.",
+    server_down: "The server stopped responding: ",
+    finished: "Finished.",
+    not_created: " — not created yet",
+    export_note_a: "Save dates and your collections exist only in Instagram's " +
+      "official export. ",
+    export_note_link: "Request it",
+    export_note_b: " (JSON format, « Saved items »), then drop the file in your " +
+      "backup folder — or open « Details and messages » to pick it.",
+    lang_switch: "Passer en français",
+  },
+  fr: {
+    tagline: "Sauvegarde locale de vos contenus Instagram enregistrés.",
+    account_label: "Compte Instagram",
+    login_hint: "Connectez-vous sur", login_hint_end: ", puis réappuyez sur le bouton.",
+    connect: "Connecter le compte", recheck: "Vérifier à nouveau",
+    st_unverified: "compte non vérifié", st_connected: "connecté : ",
+    folder_label: "Dossier de sauvegarde", open: "Ouvrir",
+    backup: "Sauvegarder ma bibliothèque", update: "Mettre à jour ma bibliothèque",
+    running: "Sauvegarde en cours…",
+    c_saved: "enregistrés", c_known: "déjà là", c_failed: "en échec",
+    stop: "Arrêter", open_catalogue: "Ouvrir le catalogue",
+    details: "Détails et messages", log: "Journal", log_empty: "Rien pour le moment.",
+    other_way: "Se connecter autrement",
+    cookie_hint: "Si la détection échoue, collez le cookie sessionid d'instagram.com " +
+      "(outils de développement → Application → Cookies).",
+    cookie_ph: "sessionid=…",
+    use_cookie: "Utiliser ce cookie", forget: "Oublier cette session",
+    export_title: "Export officiel Instagram",
+    export_hint: "Il contient vos dates d'enregistrement et vos collections, que rien " +
+      "d'autre ne fournit. Choisissez le .zip ici, ou posez-le simplement dans votre " +
+      "dossier de sauvegarde : il sera lu à la prochaine sauvegarde.",
+    choose: "Choisir le fichier…", no_file: "aucun fichier", read: "Lire",
+    where: "Emplacement des fichiers",
+    foot: "Tout reste sur cette machine. igarchive --help liste ce que le terminal " +
+      "sait faire au-delà de cette page.",
+    adv_title: "Réglages avancés",
+    adv_intro: "Les valeurs par défaut conviennent à tout le monde. Ne les changez " +
+      "que si vous savez ce que vous faites.",
+    s_pause: "Pause", s_to: "à", s_seconds: "secondes entre deux contenus",
+    s_limit: "Plafond", s_limit_unit: "contenus par passe — 0 pour tout",
+    s_stop: "Arrêt", s_stop_unit: "après N déjà connus — 0 pour tout parcourir",
+    s_get: "Récupérer", s_videos: "vidéos", s_thumbs: "vignettes",
+    s_comments: "commentaires",
+    adv_warn: "Raccourcir les pauses est le moyen le plus sûr de faire limiter votre " +
+      "compte par Instagram. Comptez une heure pour 500 contenus.",
+    cancel: "Annuler", save: "Enregistrer",
+    facts_empty: "Dossier vide.",
+    facts_none: "Le dossier sera créé à la première sauvegarde.",
+    facts_last: " — dernière sauvegarde ",
+    today: "aujourd'hui", yesterday: "hier", days_ago: "il y a {n} jours",
+    on_date: "le ",
+    connect_first: "Connectez le compte pour lancer la sauvegarde.",
+    checking: "Vérification auprès d'Instagram…",
+    folder_saved: "Dossier enregistré.", settings_saved: "Réglages enregistrés.",
+    server_down: "Le serveur ne répond plus : ",
+    finished: "Terminé.",
+    not_created: " — pas encore créé",
+    export_note_a: "Les dates d'enregistrement et vos collections ne figurent que dans " +
+      "l'export officiel d'Instagram. ",
+    export_note_link: "Demandez-le",
+    export_note_b: " (format JSON, « Éléments enregistrés »), puis posez le fichier dans " +
+      "votre dossier de sauvegarde — ou ouvrez « Détails et messages » pour le choisir.",
+    lang_switch: "Switch to English",
+  },
+};
+
+let lang = "en";
+const tr = (key) => (T[lang] && T[lang][key]) || T.en[key] || "[" + key + "]";
+
+function applyLanguage(code) {
+  lang = T[code] ? code : "en";
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach((el) => {
+    el.textContent = tr(el.dataset.t);
+  });
+  document.querySelectorAll("[data-t-ph]").forEach((el) => {
+    el.placeholder = tr(el.dataset.tPh);
+  });
+  document.querySelectorAll("[data-t-title]").forEach((el) => {
+    el.title = tr(el.dataset.tTitle);
+    el.setAttribute("aria-label", tr(el.dataset.tTitle));
+  });
+  $("flag").textContent = lang === "fr" ? "🇫🇷" : "🇬🇧";
+  $("langcode").textContent = lang.toUpperCase();
+  $("btn-lang").title = tr("lang_switch");
+}
 const $ = (id) => document.getElementById(id);
-let running = false, pathTouched = false;
+let running = false, pathTouched = false, lastState = null;
+
+// Reglages avances : ils ne vivent que dans la boite derriere l'engrenage.
+const ADVANCED = ["sleep_min","sleep_max","limit_per_run","stop_after_known",
+  "download_videos","download_thumbnails","download_comments"];
+const CHECKBOXES = ["download_videos","download_thumbnails","download_comments"];
 
 function say(id, text, kind) {
   const box = $(id);
@@ -239,7 +447,8 @@ async function api(path, body) {
 }
 
 function bytes(n) {
-  const units = ["o","Ko","Mo","Go","To"];
+  // « octet » en français, « byte » en anglais : l'abréviation change avec la langue.
+  const units = lang === "fr" ? ["o","Ko","Mo","Go","To"] : ["B","KB","MB","GB","TB"];
   let i = 0, v = Number(n) || 0;
   while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
   return (i === 0 ? v.toFixed(0) : v.toFixed(1)) + " " + units[i];
@@ -250,15 +459,17 @@ function whenAgo(iso) {
   const then = new Date(iso);
   if (isNaN(then)) return null;
   const days = Math.floor((Date.now() - then) / 86400000);
-  const date = then.toLocaleDateString("fr-FR",
+  const date = then.toLocaleDateString(lang === "fr" ? "fr-FR" : "en-GB",
     { day: "numeric", month: "long", year: "numeric" });
-  if (days <= 0) return "aujourd'hui";
-  if (days === 1) return "hier";
-  if (days < 30) return "il y a " + days + " jours";
-  return "le " + date;
+  if (days <= 0) return tr("today");
+  if (days === 1) return tr("yesterday");
+  if (days < 30) return tr("days_ago").replace("{n}", days);
+  return tr("on_date") + date;
 }
 
 function render(state) {
+  lastState = state;
+  if (state.config.language !== lang) applyLanguage(state.config.language);
   $("ver").textContent = "v" + state.version;
 
   const s = state.session, sum = state.summary, job = state.job, pr = job.progress;
@@ -266,15 +477,14 @@ function render(state) {
   running = job.running;
 
   // --- compte ---
+  // L'interface n'interroge jamais Instagram d'elle-meme : elle affiche le
+  // resultat du dernier « Connecter le compte », ou rien du tout.
   const have = sessions.length > 0;
   $("have-session").hidden = !have;
-  $("no-session").hidden = have;
-  // « je n'ai pas pu verifier » n'est pas « session expiree » : ne pas envoyer
-  // l'utilisateur se reconnecter alors que rien ne le lui demande.
-  const expired = s.exists && s.reachable !== false && !s.valid;
-  $("reconnect-hint").hidden = !(have && expired);
-  $("btn-connect").textContent = have
-    ? "Connecter un autre compte" : "Connecter ce navigateur";
+  $("login-hint").hidden = !(s.checked && !s.valid);
+  $("btn-connect").textContent = tr(s.valid ? "recheck" : "connect");
+  $("btn-connect").className = s.valid ? "" : "main";
+  if (!s.valid) $("btn-connect").style.cssText = "width:auto;margin-top:0";
 
   const select = $("account");
   const wanted = sessions.join("|");
@@ -286,10 +496,16 @@ function render(state) {
   if (state.config.username) select.value = state.config.username;
 
   const st = $("st-account");
-  if (s.valid) { st.textContent = "connecté"; st.className = "state on"; }
-  else if (expired) { st.textContent = "session expirée"; st.className = "state off"; }
-  else if (s.exists) { st.textContent = "vérification impossible"; st.className = "state"; }
-  else { st.textContent = "non connecté"; st.className = "state off"; }
+  if (s.valid) {
+    st.textContent = tr("st_connected") + (s.account || "");
+    st.className = "state on";
+  } else if (s.checked) {
+    st.textContent = s.message || tr("st_unverified");
+    st.className = "state off";
+  } else {
+    st.textContent = tr("st_unverified");
+    st.className = "state";
+  }
 
   // --- archive ---
   if (!pathTouched && document.activeElement !== $("archive_dir")) {
@@ -297,15 +513,15 @@ function render(state) {
   }
   const last = whenAgo(sum.last_archived);
   $("facts").innerHTML = sum.archived
-    ? "<b>" + sum.archived + "</b> contenus, <b>" + bytes(sum.bytes) + "</b>" +
-      (last ? " — dernier archivage " + last : "")
-    : (sum.exists ? "Dossier vide." : "Le dossier sera créé au premier téléchargement.");
+    ? "<b>" + sum.archived + "</b> " + tr("c_saved") + ", <b>" + bytes(sum.bytes) + "</b>" +
+      (last ? tr("facts_last") + last : "")
+    : (sum.exists ? tr("facts_empty") : tr("facts_none"));
 
   // --- action ---
-  const blocked = (state.problems || []).length > 0;
+  const blocked = !s.valid;
   $("btn-start").disabled = running || blocked;
-  $("btn-start").textContent = running ? "Téléchargement en cours…"
-    : (sum.archived ? "Mettre à jour ma bibliothèque" : "Télécharger ma bibliothèque");
+  $("btn-start").textContent = tr(running ? "running"
+    : (sum.archived ? "update" : "backup"));
   $("running").hidden = !running && !pr.done && !pr.failed;
   $("btn-stop").disabled = !running;
   $("done-actions").hidden = !sum.archived;
@@ -316,21 +532,16 @@ function render(state) {
   $("current").textContent = pr.current || pr.message || "";
 
   if (pr.error) say("msg", pr.error, "bad");
-  else if (blocked && !s.valid && !s.exists) say("msg", "Connectez un compte pour commencer.", null);
-  else if (s.exists && s.reachable === false && !running)
-    say("msg", "Impossible de joindre Instagram pour vérifier la session. "
-             + "Le téléchargement reste possible : la session est peut-être valable.", null);
-  else if (pr.finished && pr.phase === "termine") say("msg", "Terminé.", "ok");
+  else if (blocked) say("msg", tr("connect_first"), null);
+  else if (pr.finished && pr.phase === "termine") say("msg", tr("finished"), "ok");
   else if (!running) say("msg", "");
 
   const missing = sum.archived - (sum.known_dates || 0);
   $("export-note").hidden = !(sum.archived && missing > 0);
-  $("export-note").innerHTML = "Les dates d'enregistrement et vos collections ne " +
-    "figurent que dans l'export officiel d'Instagram. " +
+  $("export-note").innerHTML = tr("export_note_a") +
     '<a href="https://accountscenter.instagram.com/info_and_permissions/dyi/" ' +
-    'target="_blank" rel="noopener">Demandez-le</a> (format JSON, « Éléments ' +
-    "enregistrés »), puis posez le fichier reçu dans votre dossier de sauvegarde — " +
-    "ou ouvrez « Détails et messages » pour le choisir.";
+    'target="_blank" rel="noopener">' + tr("export_note_link") + "</a>" +
+    tr("export_note_b");
 
   // --- panneau ---
   const log = $("log");
@@ -346,7 +557,7 @@ function render(state) {
 
 async function refresh() {
   try { render(await api("/api/state")); }
-  catch (e) { say("msg", "Le serveur ne répond plus : " + e.message, "bad"); }
+  catch (e) { say("msg", tr("server_down") + e.message, "bad"); }
 }
 
 function wire(id, handler) {
@@ -364,7 +575,7 @@ $("archive_dir").addEventListener("change", async () => {
   try {
     await api("/api/config", { archive_dir: $("archive_dir").value });
     pathTouched = false;
-    say("msg", "Dossier enregistré.", "ok");
+    say("msg", tr("folder_saved"), "ok");
   } catch (e) { say("msg", e.message, "bad"); }
   refresh();
 });
@@ -376,14 +587,16 @@ $("account").addEventListener("change", async () => {
 });
 
 wire("btn-connect", async () => {
-  say("msg-session", "Recherche d'une session dans vos navigateurs…");
-  try { say("msg-session", (await api("/api/session/auto", {})).message, "ok"); }
-  catch (e) { say("msg-session", e.message, "bad"); }
+  say("msg-session", tr("checking"));
+  try {
+    const r = await api("/api/session/connect", {});
+    say("msg-session", r.message, r.valid ? "ok" : "bad");
+  } catch (e) { say("msg-session", e.message, "bad"); }
 });
 
 $("export-file").addEventListener("change", (e) => {
   const file = e.target.files[0];
-  $("picked").textContent = file ? file.name + " · " + bytes(file.size) : "aucun fichier";
+  $("picked").textContent = file ? file.name + " · " + bytes(file.size) : tr("no_file");
 });
 
 wire("btn-upload", async () => {
@@ -435,6 +648,42 @@ wire("btn-folder", async () => {
   catch (e) { say("msg", e.message, "bad"); }
 });
 
+$("btn-lang").addEventListener("click", async () => {
+  const next = lang === "fr" ? "en" : "fr";
+  applyLanguage(next);
+  try {
+    await api("/api/config", { language: next });
+    await api("/api/catalog", {});   // le catalogue est un fichier : il se regenere
+  } catch (e) { say("msg", e.message, "bad"); }
+  refresh();
+});
+
+$("btn-settings").addEventListener("click", () => {
+  const cfg = (lastState && lastState.config) || {};
+  for (const key of ADVANCED) {
+    const el = $(key);
+    if (!el) continue;
+    if (CHECKBOXES.includes(key)) el.checked = !!cfg[key];
+    else el.value = cfg[key];
+  }
+  $("settings").showModal();
+});
+
+$("settings").addEventListener("close", async () => {
+  if ($("settings").returnValue !== "save") return;
+  const out = {};
+  for (const key of ADVANCED) {
+    const el = $(key);
+    if (el) out[key] = CHECKBOXES.includes(key) ? el.checked : el.value;
+  }
+  try {
+    await api("/api/config", out);
+    say("msg", tr("settings_saved"), "ok");
+  } catch (e) { say("msg", e.message, "bad"); }
+  refresh();
+});
+
+applyLanguage('en');
 refresh();
 setInterval(() => refresh(), 1500);
 </script>

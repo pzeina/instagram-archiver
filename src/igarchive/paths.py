@@ -75,9 +75,12 @@ def open_in_browser(target: str) -> bool:
         return False
 
 
-def human_bytes(size: float) -> str:
-    for unit in ("o", "Ko", "Mo", "Go", "To"):
-        if abs(size) < 1024 or unit == "To":
-            return f"{size:.1f} {unit}" if unit != "o" else f"{size:.0f} o"
+def human_bytes(size: float, language: str = "en") -> str:
+    """Taille lisible. L'abreviation suit la langue : « octet » ou « byte »."""
+    units = ("o", "Ko", "Mo", "Go", "To") if language.startswith("fr") \
+        else ("B", "KB", "MB", "GB", "TB")
+    for unit in units:
+        if abs(size) < 1024 or unit == units[-1]:
+            return f"{size:.0f} {unit}" if unit == units[0] else f"{size:.1f} {unit}"
         size /= 1024
-    return f"{size:.1f} To"
+    return f"{size:.1f} {units[-1]}"
