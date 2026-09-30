@@ -202,3 +202,47 @@ class DownloadTouchesNothingOutsideTheArchive(ServerCase):
 
         signature = inspect.signature(dyi.find_exports)
         self.assertIs(signature.parameters["search_home"].default, True)
+
+
+class LaunchingTwiceShowsTheOpenWindow(ServerCase):
+    """Relancer le programme alors qu'il tourne deja est le cas le plus frequent
+    d'un port occupe. Refuser de demarrer laisse l'utilisateur devant une erreur
+    au lieu de la fenetre qu'il cherchait."""
+
+    def test_an_igarchive_already_listening_is_recognised(self) -> None:
+        self.assertTrue(webui.already_running(self.port))
+
+    def test_a_free_port_is_not_mistaken_for_one(self) -> None:
+        import socket
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            free = probe.getsockname()[1]
+        self.assertFalse(webui.already_running(free))
+
+    def test_another_program_on_the_port_is_not_mistaken_for_igarchive(self) -> None:
+        import socket
+        import threading
+
+        server = socket.socket()
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind(("127.0.0.1", 0))
+        server.listen(1)
+        port = server.getsockname()[1]
+
+        def answer() -> None:
+            try:
+                client, _ = server.accept()
+                client.recv(1024)
+                client.sendall(b"HTTP/1.1 200 OK\r\nServer: autre-chose/1\r\n"
+                               b"Content-Length: 0\r\n\r\n")
+                client.close()
+            except OSError:
+                pass
+
+        thread = threading.Thread(target=answer, daemon=True)
+        thread.start()
+        try:
+            self.assertFalse(webui.already_running(port))
+        finally:
+            server.close()
+            thread.join(timeout=3)

@@ -16,6 +16,8 @@ from __future__ import annotations
 import json
 import secrets
 import tempfile
+import urllib.error
+import urllib.request
 import threading
 import time
 from dataclasses import asdict
@@ -457,6 +459,19 @@ class Handler(BaseHTTPRequestHandler):
                              "error": f"Erreur inattendue : {type(exc).__name__}: {exc}"})
 
 
+def already_running(port: int) -> bool:
+    """Vrai si le port est tenu par une autre instance d'igarchive.
+
+    On interroge le port plutot que la liste des processus : c'est portable, et
+    l'en-tete Server suffit a reconnaitre le programme.
+    """
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=2) as response:
+            return str(response.headers.get("Server", "")).startswith("igarchive/")
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+
+
 def serve(port: int | None = None, *, open_browser: bool = True) -> None:
     """Demarre l'interface et bloque jusqu'a Ctrl-C."""
     state = AppState()
@@ -466,9 +481,18 @@ def serve(port: int | None = None, *, open_browser: bool = True) -> None:
     try:
         httpd = ThreadingHTTPServer(("127.0.0.1", port), handler)
     except OSError as exc:
+        # Le cas de loin le plus frequent est une fenetre deja ouverte. Refuser
+        # de demarrer serait absurde : autant montrer celle qui tourne.
+        if already_running(port):
+            url = f"http://127.0.0.1:{port}/"
+            print(f"igarchive tourne deja sur {url} — ouverture de cette fenetre.")
+            print("Pour l'arreter : Ctrl-C dans le terminal ou elle tourne.")
+            if open_browser:
+                paths.open_in_browser(url)
+            return
         raise SystemExit(
             f"Impossible d'ecouter sur le port {port} : {exc}\n"
-            f"Un autre programme l'utilise sans doute. Essaie :  igarchive ui --port {port + 1}"
+            f"Un autre programme utilise ce port. Essaie :  igarchive ui --port {port + 1}"
         ) from exc
 
     url = f"http://127.0.0.1:{httpd.server_address[1]}/"
