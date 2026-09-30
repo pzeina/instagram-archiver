@@ -206,9 +206,12 @@ class SavedDateDisplay(unittest.TestCase):
         return (self.archive / "index.html").read_text(encoding="utf-8")
 
     def test_shows_the_exact_date_once_it_is_known(self) -> None:
+        """On verifie la promesse -- la date exacte apparait, l'ordre disparait --
+        et non la facon dont elle est balisee, qui peut changer."""
         page = self.page(record("X", saved_at="2026-09-25T14:30:00+00:00",
                                 saved_timestamp=1790000000))
-        self.assertIn("enregistr&eacute; le 2026-09-25", page)
+        self.assertIn("2026-09-25", page)
+        self.assertIn("enregistr&eacute; le", page)
         self.assertNotIn("de la liste", page)
 
     def test_explains_itself_when_the_date_is_missing(self) -> None:

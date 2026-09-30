@@ -215,59 +215,93 @@ def write_csv_catalog(archive: Path, records: list[dict]) -> Path:
 
 
 PAGE_CSS = """
-:root { --bg:#fbfbfa; --fg:#1c1c1a; --muted:#6b6b66; --line:#e3e3df; --card:#fff;
-        --accent:#2b5fd9; --shadow:0 1px 2px rgba(0,0,0,.05); }
+/* Registre de consultation : des planches et leur legende, separees par du
+   blanc plutot que par des boites. Meme palette et meme typographie que la
+   page de reglages, pour que les deux ne fassent qu'un seul objet. */
+:root {
+  --paper:#f7f8fa; --ink:#16181d; --ink-2:#565d6b; --ink-3:#8a909c;
+  --rule:#e2e6ec; --rule-2:#cdd3dc; --field:#fff; --mount:#eceef2;
+  --signal:#0e5a55; --signal-soft:#e6f0ef;
+  --sans:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,"JetBrains Mono","DejaVu Sans Mono",Menlo,Consolas,monospace;
+}
 @media (prefers-color-scheme: dark) { :root:not([data-theme=light]) {
-  --bg:#16161a; --fg:#ececea; --muted:#9a9a95; --line:#2c2c32; --card:#1e1e24;
-  --accent:#7fa5ff; --accent-soft:#232a44; --shadow:0 1px 2px rgba(0,0,0,.3); } }
+  --paper:#15171b; --ink:#e8eaee; --ink-2:#a2a9b5; --ink-3:#727984;
+  --rule:#2a2e36; --rule-2:#3a3f49; --field:#121418; --mount:#1f232a;
+  --signal:#5cbbaf; --signal-soft:#17312f;
+} }
+
 * { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--fg);
-  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
-header { position:sticky; top:0; z-index:5; background:var(--bg);
-  border-bottom:1px solid var(--line); padding:16px 0; }
-.wrap { max-width:1240px; margin:0 auto; padding:0 16px; }
-h1 { font-size:19px; margin:0 0 4px; }
-.meta { color:var(--muted); font-size:13px; }
-.controls { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
-input[type=search], select { padding:8px 12px; border:1px solid var(--line);
-  border-radius:8px; background:var(--card); color:var(--fg); font-size:14px; }
-input[type=search] { flex:1 1 240px; min-width:0; }
-button { padding:8px 12px; border:1px solid var(--line); border-radius:8px;
-  background:var(--card); color:var(--fg); cursor:pointer; font-size:13px; }
-button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
-.grid { display:grid; gap:16px; padding:20px 0 60px;
-  grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); }
-.card { background:var(--card); border:1px solid var(--line); border-radius:12px;
-  overflow:hidden; display:flex; flex-direction:column; box-shadow:var(--shadow); }
-/* position:absolute a l'interieur : une video portrait ne peut pas etirer la carte,
-   ce que aspect-ratio seul ne garantit pas sur un conteneur flex. */
-.media { position:relative; background:#000; aspect-ratio:1/1; overflow:hidden; }
+body { margin:0; background:var(--paper); color:var(--ink);
+  font:15px/1.6 var(--sans); font-variant-numeric:tabular-nums; }
+.wrap { max-width:76rem; margin:0 auto; padding:0 1.5rem; }
+
+/* ---- en-tete : le bloc d'identification du registre ---- */
+header { position:sticky; top:0; z-index:5; background:var(--paper);
+  border-bottom:1px solid var(--rule); padding:1.5rem 0 1.1rem; }
+h1 { font-size:1.25rem; font-weight:600; letter-spacing:-.02em; margin:0; }
+.ledger { display:flex; gap:1.75rem; flex-wrap:wrap; margin:.6rem 0 0;
+  font-size:.8125rem; color:var(--ink-3); }
+.ledger b { font-family:var(--mono); font-weight:500; color:var(--ink);
+  margin-right:.35rem; }
+
+.controls { display:flex; gap:.5rem; flex-wrap:wrap; margin-top:1.1rem;
+  align-items:center; }
+input[type=search], select { font:14px/1.45 var(--sans); color:var(--ink);
+  background:var(--field); border:1px solid var(--rule-2); border-radius:3px;
+  padding:.4rem .6rem; }
+input[type=search] { flex:1 1 15rem; min-width:0; }
+button { font:13.5px/1 var(--sans); color:var(--ink); background:var(--field);
+  border:1px solid var(--rule-2); border-radius:3px; padding:.45rem .8rem;
+  cursor:pointer; white-space:nowrap; }
+button:hover { border-color:var(--signal); color:var(--signal); }
+button.on { background:var(--signal); border-color:var(--signal); color:var(--paper); }
+:focus-visible { outline:2px solid var(--signal); outline-offset:1px; }
+
+.banner { margin:1.1rem 0 0; padding-left:.75rem; border-left:2px solid var(--rule-2);
+  font-size:.8125rem; color:var(--ink-2); max-width:52rem; }
+.banner b { font-weight:600; color:var(--ink); }
+
+/* ---- planches ---- */
+.grid { display:grid; gap:2.25rem 1.75rem; padding:2rem 0 5rem;
+  grid-template-columns:repeat(auto-fill,minmax(15rem,1fr)); }
+.card { display:flex; flex-direction:column; min-width:0; }
+
+/* Le format 4/5 est celui de la plupart des contenus ; « contain » montre le
+   cadre entier plutot que d'en recadrer une partie, ce qu'une archive doit. */
+.media { position:relative; aspect-ratio:4/5; background:var(--mount);
+  overflow:hidden; border-radius:2px; box-shadow:inset 0 0 0 1px rgba(0,0,0,.05); }
 .media video, .media img { position:absolute; inset:0; width:100%; height:100%;
   object-fit:contain; display:block; }
 .nomedia { position:absolute; inset:0; display:flex; align-items:center;
-  justify-content:center; color:#777; font-size:13px; }
-.body { padding:12px 14px 14px; }
-.head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
-.author { color:var(--accent); font-weight:600; text-decoration:none;
+  justify-content:center; color:var(--ink-3); font-size:.75rem; }
+
+.head { display:flex; justify-content:space-between; align-items:baseline;
+  gap:.5rem; margin-top:.7rem; }
+.author { color:var(--ink); font-weight:600; font-size:.875rem; text-decoration:none;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.badge { font-size:11px; color:var(--muted); border:1px solid var(--line);
-  border-radius:99px; padding:1px 8px; white-space:nowrap; }
-.dates { display:flex; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--muted);
-  margin:6px 0 8px; }
-.caption { margin:0; font-size:13.5px; white-space:pre-wrap; overflow-wrap:anywhere;
-  max-height:8.2em; overflow:auto; }
-.tags { margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; }
-.tags span { font-size:11.5px; color:var(--muted); }
-.approx { font-style:italic; opacity:.85; border-bottom:1px dotted currentColor; cursor:help; }
-.colls { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+.author:hover { color:var(--signal); }
+.kind { font-size:.75rem; color:var(--ink-3); white-space:nowrap; }
+
+.dates { display:flex; flex-direction:column; gap:.05rem; margin-top:.3rem;
+  font-size:.75rem; color:var(--ink-3); }
+.dates span { display:flex; gap:.4rem; }
+.dates i { font-style:normal; font-family:var(--mono); color:var(--ink-2);
+  margin-left:auto; }
+.approx i { font-family:var(--sans); font-style:italic; }
+
+.colls { display:flex; gap:.3rem; flex-wrap:wrap; margin-top:.5rem; }
 .colls:empty { display:none; }
-.coll { font-size:11.5px; padding:1px 8px; border-radius:99px;
-  background:var(--accent-soft, rgba(43,95,217,.1)); color:var(--accent); }
-.banner { margin:14px 0 0; padding:10px 14px; border-radius:9px; font-size:13.5px;
-  border:1px solid var(--line); background:var(--card); color:var(--muted); }
-.banner b { color:var(--fg); }
-.empty { padding:60px 0; text-align:center; color:var(--muted); }
-@media (max-width:520px) { .grid { grid-template-columns:1fr; } }
+.coll { font-size:.6875rem; padding:.05rem .4rem; border-radius:2px;
+  background:var(--signal-soft); color:var(--signal); }
+
+.caption { margin:.5rem 0 0; font-size:.8125rem; line-height:1.5; color:var(--ink-2);
+  overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:4;
+  -webkit-box-orient:vertical; overflow:hidden; }
+.tags { margin-top:.4rem; font-size:.6875rem; color:var(--ink-3);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.empty { padding:5rem 0; text-align:center; color:var(--ink-3); font-size:.875rem; }
+@media (max-width:30rem) { .grid { grid-template-columns:1fr; } }
 """
 
 PAGE_JS = """
@@ -307,6 +341,10 @@ document.querySelectorAll('button[data-filter]').forEach(function (b) {
 """
 
 
+def _plural(count: int, singular: str, plural: str | None = None) -> str:
+    return singular if count <= 1 else (plural or singular + "s")
+
+
 def _card(record: dict) -> str:
     def esc(value: Any) -> str:
         return html.escape("" if value is None else str(value), quote=True)
@@ -325,22 +363,20 @@ def _card(record: dict) -> str:
         preview = '<div class="nomedia">aucun media</div>'
 
     caption = record.get("caption") or ""
-    shown_caption = caption[:600]
-    ellipsis = "&hellip;" if len(caption) > 600 else ""
 
     # La date d'enregistrement ne vient que de l'export officiel. Tant qu'il n'a
     # pas ete importe, on n'a que l'ordre : autant le dire plutot que d'afficher
     # un « rang 3 » que rien n'explique.
     saved_at = (record.get("saved_at") or "")[:10]
     if saved_at:
-        saved_html = (f'<span title="date d\'enregistrement">enregistr&eacute; le '
-                      f'{esc(saved_at)}</span>')
+        saved_html = (f'<span title="date d\'enregistrement">enregistr&eacute; le'
+                      f'<i>{esc(saved_at)}</i></span>')
     else:
         rank = record.get("saved_rank")
         position = "1er" if rank == 0 else f"{(rank or 0) + 1}e"
         saved_html = ('<span class="approx" title="Date exacte disponible apres import '
-                      f'de l\'export officiel Instagram">enregistr&eacute; : {position} '
-                      'de la liste</span>')
+                      f'de l\'export officiel Instagram">enregistr&eacute;'
+                      f'<i>{position} de la liste</i></span>')
 
     collections = [c for c in (record.get("collections") or []) if c]
     if not collections and record.get("collection"):
@@ -348,32 +384,31 @@ def _card(record: dict) -> str:
     collection_html = "".join(
         f'<span class="coll">{esc(c)}</span>' for c in collections[:3])
     collection_data = "|" + "|".join(collections) + "|" if collections else ""
+
     haystack = " ".join([
         record.get("author") or "", caption,
         " ".join(record.get("hashtags") or []),
-        record.get("collection") or "", record.get("kind") or "",
+        " ".join(collections), record.get("kind") or "",
     ]).lower()
-    tags = " ".join(f"<span>#{esc(t)}</span>" for t in (record.get("hashtags") or [])[:8])
+    tags = " ".join(f"#{esc(t)}" for t in (record.get("hashtags") or [])[:6])
 
     return f"""
       <article class="card" data-kind="{esc(record.get('kind'))}"
                data-collections="{esc(collection_data)}"
                data-search="{esc(haystack)}">
         <div class="media">{preview}</div>
-        <div class="body">
-          <div class="head">
-            <a class="author" href="{esc(record.get('url'))}" target="_blank"
-               rel="noopener">@{esc(record.get('author'))}</a>
-            <span class="badge">{esc(record.get('kind'))}</span>
-          </div>
-          <div class="dates">
-            <span title="date de publication">publi&eacute; {esc((record.get('posted_at_utc') or '')[:10])}</span>
-            {saved_html}
-          </div>
-          <div class="colls">{collection_html}</div>
-          <p class="caption">{esc(shown_caption)}{ellipsis}</p>
-          <div class="tags">{tags}</div>
+        <div class="head">
+          <a class="author" href="{esc(record.get('url'))}" target="_blank"
+             rel="noopener">@{esc(record.get('author'))}</a>
+          <span class="kind">{esc(record.get('kind'))}</span>
         </div>
+        <div class="dates">
+          <span title="date de publication">publi&eacute;<i>{esc((record.get('posted_at_utc') or '')[:10])}</i></span>
+          {saved_html}
+        </div>
+        <div class="colls">{collection_html}</div>
+        <p class="caption">{esc(caption)}</p>
+        <div class="tags">{tags}</div>
       </article>"""
 
 
@@ -412,15 +447,18 @@ def write_html_catalog(archive: Path, records: list[dict]) -> Path:
     target.write_text(f"""<!doctype html>
 <html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Archive Instagram &mdash; contenus enregistr&eacute;s</title>
+<title>Archive Instagram</title>
 <style>{PAGE_CSS}</style></head><body>
 <header><div class="wrap">
-  <h1>Archive Instagram &mdash; contenus enregistr&eacute;s</h1>
-  <div class="meta"><span id="count">{len(records)}</span> sur {len(records)} contenus
-    &middot; {total} &middot; {dated} avec date d'enregistrement exacte
-    &middot; g&eacute;n&eacute;r&eacute; le {datetime.now():%Y-%m-%d %H:%M}</div>
+  <h1>Contenus enregistr&eacute;s</h1>
+  <div class="ledger">
+    <span><b id="count">{len(records)}</b>sur {len(records)} {_plural(len(records), "contenu")}</span>
+    <span><b>{total}</b>sur le disque</span>
+    <span><b>{dated}</b>{_plural(dated, "date", "dates")} d'enregistrement</span>
+    <span><b>{len(collections)}</b>{_plural(len(collections), "collection")}</span>
+  </div>
   <div class="controls">
-    <input type="search" id="q" placeholder="Rechercher : auteur, l&eacute;gende, hashtag&hellip;">
+    <input type="search" id="q" placeholder="Rechercher un auteur, une l&eacute;gende, un hashtag">
     <select id="coll"><option value="">toutes les collections</option>{options}</select>
     <button data-filter="" class="on">tout</button>{filters}
   </div>
