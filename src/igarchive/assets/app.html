@@ -294,6 +294,7 @@ const T = {
     add_account: "＋ Add an account…",
     add_hint: "Sign in to the other account at instagram.com, then choose this again.",
     st_unverified: "account not verified", st_connected: "connected: ",
+    st_unconfirmed: "saved, not confirmed", st_signed_out: "signed out",
     folder_label: "Backup folder", open: "Open",
     backup: "Back up my library", update: "Update my library",
     running: "Backing up…",
@@ -349,6 +350,7 @@ const T = {
     add_account: "＋ Ajouter un compte…",
     add_hint: "Connectez-vous à l'autre compte sur instagram.com, puis rechoisissez ceci.",
     st_unverified: "compte non vérifié", st_connected: "connecté : ",
+    st_unconfirmed: "enregistrée, non confirmée", st_signed_out: "déconnecté",
     folder_label: "Dossier de sauvegarde", open: "Ouvrir",
     backup: "Sauvegarder ma bibliothèque", update: "Mettre à jour ma bibliothèque",
     running: "Sauvegarde en cours…",
@@ -486,9 +488,9 @@ function render(state) {
   const have = sessions.length > 0;
   $("have-session").hidden = false;
   $("login-hint").hidden = !(s.checked && !s.valid);
-  $("btn-connect").textContent = tr(s.valid ? "recheck" : "connect");
-  $("btn-connect").className = s.valid ? "" : "main";
-  if (!s.valid) $("btn-connect").style.cssText = "width:auto;margin-top:0";
+  $("btn-connect").textContent = tr(s.usable ? "recheck" : "connect");
+  $("btn-connect").className = s.usable ? "" : "main";
+  if (!s.usable) $("btn-connect").style.cssText = "width:auto;margin-top:0";
 
   const select = $("account");
   const wanted = sessions.join("|") + "|" + lang;
@@ -500,12 +502,20 @@ function render(state) {
   }
   if (state.config.username) select.value = state.config.username;
 
+  // Un libelle court ici, le detail dans le message : les repeter tous les deux
+  // donnait trois fois la meme phrase a l'ecran.
   const st = $("st-account");
   if (s.valid) {
     st.textContent = tr("st_connected") + (s.account || "");
     st.className = "state on";
+  } else if (s.usable) {
+    st.textContent = tr("st_unconfirmed");
+    st.className = "state";
+  } else if (signedOut) {
+    st.textContent = tr("st_signed_out");
+    st.className = "state off";
   } else if (s.checked) {
-    st.textContent = s.message || tr("st_unverified");
+    st.textContent = tr("st_unverified");
     st.className = "state off";
   } else {
     st.textContent = tr("st_unverified");
@@ -523,7 +533,7 @@ function render(state) {
     : (sum.exists ? tr("facts_empty") : tr("facts_none"));
 
   // --- action ---
-  const blocked = !s.valid;
+  const blocked = !s.usable;
   $("btn-start").disabled = running || blocked;
   $("btn-start").textContent = tr(running ? "running"
     : (sum.archived ? "update" : "backup"));

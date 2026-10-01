@@ -339,3 +339,20 @@ STRINGS.update({
         "fr": "Pour l'arreter : Ctrl-C dans le terminal ou elle tourne.",
     },
 })
+
+STRINGS.update({
+    "unverified_usable": {
+        "en": "Instagram did not answer, so the session could not be confirmed. "
+              "It is most likely still good: start the backup and it will say "
+              "within seconds if it is not.",
+        "fr": "Instagram n'a pas repondu, la session n'a donc pas pu etre confirmee. "
+              "Elle est tres probablement encore valable : lancez la sauvegarde, "
+              "elle vous le dira en quelques secondes si ce n'est pas le cas.",
+    },
+    "st_unconfirmed": {
+        "en": "saved, not confirmed", "fr": "enregistree, non confirmee"},
+    "signed_out": {
+        "en": "Signed out of Instagram. Sign in again, then press the button.",
+        "fr": "Deconnecte d'Instagram. Reconnectez-vous, puis appuyez sur le bouton.",
+    },
+})

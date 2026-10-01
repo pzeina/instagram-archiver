@@ -339,24 +339,33 @@ def connect(username: str = "") -> dict:
     checked = _probe(username) if username else None
     if checked and checked["valid"]:
         invalidate(username)
-        return {**checked, "checked": True,
+        return {**checked, "checked": True, "usable": True,
                 "message": i18n.t("connected_to", account=checked["account"])}
+
+    # Instagram would not answer. That says nothing about the stored session --
+    # the endpoint being throttled is the very one we ask. Blocking the backup on
+    # an unanswerable question strands a user whose session works perfectly; the
+    # backup itself settles the matter in seconds.
+    if checked and checked["exists"] and not checked["reachable"]:
+        invalidate(username)
+        return {**checked, "checked": True, "usable": True,
+                "message": i18n.t("unverified_usable")}
 
     try:
         account, _ = open_auto(username)
     except SessionError as exc:
-        if checked and not checked["reachable"]:
-            # Instagram refuses to answer: conclude nothing about the session.
-            return {**checked, "checked": True, "message": i18n.t("throttled")}
         return {"exists": bool(checked and checked["exists"]), "valid": False,
-                "account": None, "reachable": True, "checked": True,
-                "error": str(exc), "message": str(exc).splitlines()[0]}
+                "usable": False, "account": None, "reachable": True,
+                "checked": True, "error": str(exc),
+                "message": str(exc).splitlines()[0]}
 
     result = _probe(account)
     invalidate(account)
-    return {**result, "checked": True,
+    # A session just taken from the browser is usable even when Instagram would
+    # not confirm it: the cookies are fresh by construction.
+    return {**result, "checked": True, "usable": True,
             "message": (i18n.t("connected_to", account=account) if result["valid"]
-                        else i18n.t("unconfirmed"))}
+                        else i18n.t("unverified_usable"))}
 
 
 def invalidate(username: str | None = None) -> None:

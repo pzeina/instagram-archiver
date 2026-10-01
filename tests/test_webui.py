@@ -276,3 +276,33 @@ class AddingASecondAccount(ServerCase):
         status, payload = self.call("/api/session/use", {"username": "ghost"})
         self.assertEqual(status, 400)
         self.assertIn("ghost", payload["error"])
+
+
+class AnUnanswerableCheckDoesNotBlockTheBackup(ServerCase):
+    """The endpoint used to verify a session is the very one Instagram throttles.
+    Treating "no answer" as "invalid" stranded users whose session worked: they
+    could never start a backup, though the backup itself would have proved it."""
+
+    def test_a_confirmed_session_may_start_a_backup(self) -> None:
+        self.state.checked = {"checked": True, "valid": True, "usable": True,
+                              "account": "me", "exists": True, "reachable": True}
+        status, payload = self.call("/api/fetch/start", {})
+        self.assertNotEqual(payload.get("error"), i18n.t("connect_first", "en"))
+
+    def test_an_unconfirmed_session_may_still_start_a_backup(self) -> None:
+        self.state.checked = {"checked": True, "valid": False, "usable": True,
+                              "account": None, "exists": True, "reachable": False}
+        status, payload = self.call("/api/fetch/start", {})
+        self.assertNotEqual(payload.get("error"), i18n.t("connect_first", "en"))
+
+    def test_a_session_known_to_be_signed_out_still_blocks(self) -> None:
+        self.state.checked = {"checked": True, "valid": False, "usable": False,
+                              "account": None, "exists": True, "reachable": True}
+        status, payload = self.call("/api/fetch/start", {})
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["error"], i18n.t("connect_first", "en"))
+
+    def test_never_having_checked_still_blocks(self) -> None:
+        self.state.checked = None
+        status, payload = self.call("/api/fetch/start", {})
+        self.assertEqual(status, 400)

@@ -238,3 +238,42 @@ class EveryClientIsSilenced(unittest.TestCase):
                  contextlib.redirect_stderr(noise):
                 result = session._probe("me")
         self.assertFalse(result["reachable"])
+
+
+class ThrottlingMustNotStrandTheUser(unittest.TestCase):
+    """Instagram throttles the endpoint that verifies a session. Reading that
+    silence as "invalid" left a user with a working session unable to start a
+    backup -- the one action that would have settled the question."""
+
+    def setUp(self) -> None:
+        session.invalidate()
+
+    def tearDown(self) -> None:
+        session.invalidate()
+
+    def test_a_stored_session_stays_usable_when_instagram_is_silent(self) -> None:
+        silent = {"exists": True, "valid": False, "account": None,
+                  "reachable": False, "error": "feedback_required"}
+        with mock.patch.object(session, "_probe", lambda u: dict(silent)):
+            result = session.connect("me")
+        self.assertTrue(result["usable"])
+        self.assertFalse(result["valid"])
+
+    def test_a_session_instagram_calls_signed_out_is_not_usable(self) -> None:
+        out = {"exists": True, "valid": False, "account": None,
+               "reachable": True, "error": None}
+
+        def refuse(username: str = "") -> None:
+            raise session.SessionError("nothing in the browser")
+
+        with mock.patch.object(session, "_probe", lambda u: dict(out)), \
+             mock.patch.object(session, "open_auto", refuse):
+            result = session.connect("me")
+        self.assertFalse(result.get("usable"))
+
+    def test_a_confirmed_session_is_usable(self) -> None:
+        good = {"exists": True, "valid": True, "account": "me",
+                "reachable": True, "error": None}
+        with mock.patch.object(session, "_probe", lambda u: dict(good)):
+            result = session.connect("me")
+        self.assertTrue(result["usable"])

@@ -262,7 +262,9 @@ def action_catalog(state: AppState, body: dict) -> dict:
 
 def action_fetch_start(state: AppState, body: dict) -> dict:
     cfg = state.config
-    if not (state.checked and state.checked.get("valid")):
+    # « utilisable » couvre la session confirmee et celle qu'Instagram n'a pas
+    # voulu confirmer : seule une deconnexion averee doit bloquer la sauvegarde.
+    if not (state.checked and state.checked.get("usable")):
         raise ValueError(i18n.t("connect_first", cfg.language))
     problems = [p["text"] for p in cfg.problems_detail() if p["step"] != 1]
     if problems:
