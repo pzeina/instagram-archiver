@@ -23,6 +23,7 @@ from typing import Any, Callable
 
 from instaloader import Instaloader, Post, Profile
 from instaloader.exceptions import (
+    AbortDownloadException,
     ConnectionException,
     InstaloaderException,
     LoginRequiredException,
@@ -45,6 +46,46 @@ UNAVAILABLE = (
     QueryReturnedForbiddenException,
     QueryReturnedBadRequestException,
 )
+
+# AbortDownloadException descends from Exception, not from InstaloaderException,
+# so catching the latter misses it entirely. It has to be named explicitly.
+WALK_ERRORS = (AbortDownloadException, ConnectionException, InstaloaderException, OSError)
+
+# Instagram signals a rate limit in several shapes; "feedback_required" is the
+# one it returns to an account it has flagged for automated behaviour.
+THROTTLE_MARKERS = ("feedback_required", "429", "too many requests",
+                    "please wait a few minutes", "rate limit")
+
+
+def is_throttled(error: BaseException) -> bool:
+    """True when the failure is Instagram holding the account back."""
+    if isinstance(error, TooManyRequestsException):
+        return True
+    text = str(error).lower()
+    return any(marker in text for marker in THROTTLE_MARKERS)
+
+
+def walk_saved(iterator: Any, progress: Progress) -> "Iterator[Post]":
+    """Yield saved posts, turning a failure mid-walk into a readable stop.
+
+    Paginating the saved library is itself a request, so it can be refused
+    halfway through. Left unguarded it escaped as a raw exception string --
+    the user saw instaloader's wording rather than what to do about it.
+    """
+    source = iter(iterator)
+    while True:
+        try:
+            yield next(source)
+        except StopIteration:
+            return
+        except WALK_ERRORS as exc:
+            if is_throttled(exc):
+                progress.rate_limited = True
+                progress.error = i18n.t("rate_limited")
+            else:
+                progress.error = i18n.t("refused", error=exc)
+            return
+
 
 # A reel runs 90 s at most; beyond that Instagram calls it a video.
 REEL_MAX_SECONDS = 91
@@ -207,9 +248,10 @@ def run(config: Config, loader: Instaloader, *,
         progress.finished = True
         on_progress(progress)
         return progress
-    except InstaloaderException as exc:
+    except WALK_ERRORS as exc:
         progress.phase = "erreur"
-        progress.error = i18n.t("refused", error=exc)
+        progress.error = (i18n.t("rate_limited") if is_throttled(exc)
+                          else i18n.t("refused", error=exc))
         progress.finished = True
         on_progress(progress)
         return progress
@@ -217,7 +259,7 @@ def run(config: Config, loader: Instaloader, *,
     progress.phase = "en cours"
     consecutive_known = 0
 
-    for rank, post in enumerate(iterator):
+    for rank, post in enumerate(walk_saved(iterator, progress)):
         if cancel.is_set():
             progress.message = i18n.t("stopped_on_request")
             break
@@ -269,11 +311,18 @@ def run(config: Config, loader: Instaloader, *,
             progress.done += 1
             progress.bytes_total += record.bytes_total
 
-        except TooManyRequestsException:
-            # Instagram is limiting the account; stopping at once protects it.
-            progress.rate_limited = True
-            progress.error = i18n.t("rate_limited")
-            break
+        except WALK_ERRORS as exc:
+            if is_throttled(exc):
+                # Instagram is limiting the account; stopping at once protects it.
+                progress.rate_limited = True
+                progress.error = i18n.t("rate_limited")
+                break
+            if isinstance(exc, UNAVAILABLE):
+                raise
+            ledger[code] = {"status": "failed", "rank": rank,
+                            "reason": type(exc).__name__, "detail": str(exc)[:200],
+                            "seen_at": datetime.now(timezone.utc).isoformat()}
+            progress.failed += 1
         except UNAVAILABLE as exc:
             ledger[code] = {
                 "status": "unavailable", "rank": rank, "reason": type(exc).__name__,
