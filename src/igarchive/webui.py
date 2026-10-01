@@ -140,7 +140,7 @@ def action_session_browser(state: AppState, body: dict) -> dict:
     state.config.browser = browser
     state.config.save()
     return {"ok": True, "account": account, "file": str(path),
-            "message": f"Session ouverte pour « {account} »."}
+            "message": i18n.t("session_opened", account=account)}
 
 
 def action_session_connect(state: AppState, body: dict) -> dict:
@@ -163,7 +163,7 @@ def action_session_use(state: AppState, body: dict) -> dict:
     """Switch to a session already stored."""
     username = str(body.get("username") or "").strip()
     if username not in session.list_sessions():
-        raise ValueError(f"Aucune session enregistree pour {username}.")
+        raise ValueError(i18n.t("no_saved_session", account=username))
     state.config.username = username
     state.config.save()
     state.checked = None          # un autre compte demande une nouvelle verification
@@ -179,7 +179,7 @@ def action_session_cookie(state: AppState, body: dict) -> dict:
     state.config.username = account
     state.config.save()
     return {"ok": True, "account": account, "file": str(path),
-            "message": f"Session ouverte pour « {account} »."}
+            "message": i18n.t("session_opened", account=account)}
 
 
 def action_session_password(state: AppState, body: dict) -> dict:
@@ -191,7 +191,7 @@ def action_session_password(state: AppState, body: dict) -> dict:
     state.config.username = account
     state.config.save()
     return {"ok": True, "account": account, "file": str(path),
-            "message": f"Session ouverte pour « {account} »."}
+            "message": i18n.t("session_opened", account=account)}
 
 
 def action_session_forget(state: AppState, body: dict) -> dict:
@@ -243,11 +243,7 @@ def action_dyi_auto(state: AppState, body: dict) -> dict:
     """Look for the export in the downloads folder and on the desktop."""
     sources = dyi.find_exports()
     if not sources:
-        raise ValueError(
-            "Aucun export Instagram trouve dans les telechargements ni sur le bureau.\n"
-            "Demande-le sur accountscenter.instagram.com (format JSON, « Elements "
-            "enregistres »), puis reessaie — ou depose le fichier ci-dessus."
-        )
+        raise ValueError(i18n.t("no_export_found"))
     result = ingest_exports(state, sources)
     result["sources"] = [str(s) for s in sources]
     result["message"] = (f"Lu depuis {', '.join(s.name for s in sources)}. "
@@ -502,21 +498,19 @@ def serve(port: int | None = None, *, open_browser: bool = True) -> None:
         # start would be absurd; showing the running one is the useful answer.
         if already_running(port):
             url = f"http://127.0.0.1:{port}/"
-            print(f"igarchive tourne deja sur {url} — ouverture de cette fenetre.")
-            print("Pour l'arreter : Ctrl-C dans le terminal ou elle tourne.")
+            print(i18n.t("already_open", url=url))
+            print(i18n.t("stop_it_there"))
             if open_browser:
                 paths.open_in_browser(url)
             return
-        raise SystemExit(
-            f"Impossible d'ecouter sur le port {port} : {exc}\n"
-            f"Un autre programme utilise ce port. Essaie :  igarchive ui --port {port + 1}"
-        ) from exc
+        raise SystemExit(i18n.t("port_busy", port=port, error=exc,
+                                next=port + 1)) from exc
 
     url = f"http://127.0.0.1:{httpd.server_address[1]}/"
-    print(f"igarchive {__version__} — interface sur {url}")
-    print("Ctrl-C pour arreter.")
+    print(f"igarchive {__version__} — {url}")
+    print(i18n.t("stop_it_there"))
     if open_browser and not paths.open_in_browser(url):
-        print("Ouvre cette adresse manuellement dans ton navigateur.")
+        print(f"Open this address in your browser: {url}")
 
     try:
         httpd.serve_forever()

@@ -187,21 +187,54 @@ class ThrottlingIsHandledGently(unittest.TestCase):
         the interval must be markedly longer."""
         self.assertGreater(session.UNREACHABLE_TTL, session.STATUS_TTL * 4)
 
-    def test_instaloader_is_prevented_from_writing_to_the_terminal(self) -> None:
-        """Its error() method prints regardless of "quiet": a limited account
-        filled the terminal with the same message, thousands of times."""
-        class FakeContext:
-            def __init__(self):
-                self.error_log = []
-                self.printed = []
-            def error(self, msg, repeat_at_end=True):
-                self.printed.append(msg)
 
-        class FakeLoader:
-            def __init__(self):
-                self.context = FakeContext()
 
-        loader = session._hush(FakeLoader())
+class EveryClientIsSilenced(unittest.TestCase):
+    """instaloader prints its errors to standard error whatever "quiet" says.
+    One factory builds every client, so no call site can reintroduce the noise
+    by forgetting a wrapper."""
+
+    def test_the_module_builds_clients_only_through_the_factory(self) -> None:
+        from pathlib import Path as P
+        source = (P(session.__file__)).read_text(encoding="utf-8")
+        body = source.split("def _client()", 1)[1]
+        after_factory = body.split("return loader", 1)[1]
+        self.assertNotIn("Instaloader(", after_factory,
+                         "a client is built outside _client(): its errors will print")
+
+    def test_the_factory_keeps_messages_but_prints_none(self) -> None:
+        loader = session._client()
         loader.context.error("400 feedback_required")
-        self.assertEqual(loader.context.printed, [])
         self.assertEqual(loader.context.error_log, ["400 feedback_required"])
+
+    def test_a_probe_on_a_limited_account_stays_quiet(self) -> None:
+        """The exact case that filled the terminal: Instagram answering
+        feedback_required to every check."""
+        import contextlib
+        import io
+        import tempfile
+
+        class Context:
+            def __init__(self) -> None:
+                self.error_log: list[str] = []
+
+        class Loader:
+            def __init__(self) -> None:
+                self.context = Context()
+
+            def test_login(self):
+                print("Error when checking if logged in: feedback_required",
+                      file=sys.stderr)
+                self.context.error_log.append("feedback_required")
+                return None
+
+        import sys
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "me.session").write_text("x", encoding="utf-8")
+            noise = io.StringIO()
+            with mock.patch.object(session.paths, "sessions_dir", lambda: root), \
+                 mock.patch.object(session, "load", lambda u: Loader()), \
+                 contextlib.redirect_stderr(noise):
+                result = session._probe("me")
+        self.assertFalse(result["reachable"])

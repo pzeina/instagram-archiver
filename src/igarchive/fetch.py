@@ -33,6 +33,7 @@ from instaloader.exceptions import (
     TooManyRequestsException,
 )
 
+from igarchive import i18n
 from igarchive import catalog
 from igarchive.catalog import Record
 from igarchive.config import Config
@@ -202,14 +203,13 @@ def run(config: Config, loader: Instaloader, *,
         iterator = profile.get_saved_posts()
     except LoginRequiredException:
         progress.phase = "erreur"
-        progress.error = ("La session a expire. Ouvre-la a nouveau depuis "
-                          "l'onglet Compte.")
+        progress.error = i18n.t("session_expired_midrun")
         progress.finished = True
         on_progress(progress)
         return progress
     except InstaloaderException as exc:
         progress.phase = "erreur"
-        progress.error = f"Instagram a refuse la requete : {exc}"
+        progress.error = i18n.t("refused", error=exc)
         progress.finished = True
         on_progress(progress)
         return progress
@@ -219,7 +219,7 @@ def run(config: Config, loader: Instaloader, *,
 
     for rank, post in enumerate(iterator):
         if cancel.is_set():
-            progress.message = "Arrete a la demande."
+            progress.message = i18n.t("stopped_on_request")
             break
 
         progress.scanned = rank + 1
@@ -233,15 +233,14 @@ def run(config: Config, loader: Instaloader, *,
             consecutive_known += 1
             _refresh_rank(config, code, rank)
             if config.stop_after_known and consecutive_known >= config.stop_after_known:
-                progress.message = (f"{config.stop_after_known} contenus deja connus "
-                                    f"d'affilee : mise a jour terminee.")
+                progress.message = i18n.t("known_streak", count=config.stop_after_known)
                 break
             on_progress(progress)
             continue
         consecutive_known = 0
 
         if config.limit_per_run and (progress.done + progress.failed) >= config.limit_per_run:
-            progress.message = f"Plafond de {config.limit_per_run} atteint pour cette passe."
+            progress.message = i18n.t("limit_reached", limit=config.limit_per_run)
             break
 
         author = safe_component(quiet(post, "owner_username") or "inconnu")
@@ -273,9 +272,7 @@ def run(config: Config, loader: Instaloader, *,
         except TooManyRequestsException:
             # Instagram is limiting the account; stopping at once protects it.
             progress.rate_limited = True
-            progress.error = ("Instagram limite les requetes. L'archivage s'est arrete "
-                              "pour proteger le compte : relance dans une a deux heures, "
-                              "il reprendra ou il en est.")
+            progress.error = i18n.t("rate_limited")
             break
         except UNAVAILABLE as exc:
             ledger[code] = {
@@ -299,7 +296,7 @@ def run(config: Config, loader: Instaloader, *,
         # A random pause: it is a steady rhythm that triggers rate limiting.
         delay = random.uniform(config.sleep_min, config.sleep_max)
         if cancel.wait(delay):
-            progress.message = "Arrete a la demande."
+            progress.message = i18n.t("stopped_on_request")
             break
 
     write_ledger(config, ledger)

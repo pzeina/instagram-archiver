@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from igarchive import config as config_module
+from igarchive import config as config_module, i18n
 
 
 class ConfigRoundTrip(unittest.TestCase):
@@ -37,15 +37,17 @@ class ConfigRoundTrip(unittest.TestCase):
 
 class ConfigValidation(unittest.TestCase):
     def test_reports_a_missing_account(self) -> None:
-        self.assertTrue(any("compte" in p.lower() for p in config_module.Config().problems()))
+        self.assertIn(i18n.t("no_account_set", "en"),
+                      config_module.Config().problems())
 
     def test_refuses_a_dangerously_short_pause(self) -> None:
         problems = config_module.Config(username="x", sleep_min=0.1).problems()
-        self.assertTrue(any("pause minimale" in p for p in problems))
+        self.assertIn(i18n.t("pause_too_short", "en", seconds=config_module.MIN_SLEEP),
+                      problems)
 
     def test_refuses_an_inverted_pause_range(self) -> None:
         problems = config_module.Config(username="x", sleep_min=9, sleep_max=2).problems()
-        self.assertTrue(any("inferieure" in p for p in problems))
+        self.assertIn(i18n.t("pause_inverted", "en"), problems)
 
     def test_derived_paths_sit_under_the_archive(self) -> None:
         cfg = config_module.Config(archive_dir="/tmp/ig-test")
@@ -66,7 +68,7 @@ class ProblemsPointAtTheRightStep(unittest.TestCase):
 
     def test_a_bad_pause_belongs_to_the_settings_step(self) -> None:
         detail = config_module.Config(username="x", sleep_min=0.1).problems_detail()
-        pauses = [i for i in detail if "pause" in i["text"]]
+        pauses = [i for i in detail if "pause" in i["text"].lower()]
         self.assertTrue(pauses and all(i["step"] == 2 for i in pauses))
 
     def test_settings_are_clean_when_only_the_account_is_missing(self) -> None:

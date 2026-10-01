@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
-from igarchive import paths
+from igarchive import i18n, paths
 
 # Safety bounds: below these, Instagram rate limits the account very quickly.
 MIN_SLEEP = 1.0
@@ -75,20 +75,18 @@ class Config:
         """
         issues: list[dict] = []
         if not self.username.strip():
-            issues.append({"step": 1, "text": "Aucun compte Instagram renseigne."})
+            issues.append({"step": 1, "text": i18n.t("no_account_set")})
         elif not self.session_file().exists():
             issues.append({"step": 1,
-                           "text": f"Aucune session ouverte pour « {self.username} »."})
+                           "text": i18n.t("no_session_for", account=self.username)})
         if self.sleep_min < MIN_SLEEP:
             issues.append({"step": 2,
-                           "text": f"La pause minimale ne peut pas descendre sous {MIN_SLEEP} s."})
+                           "text": i18n.t("pause_too_short", seconds=MIN_SLEEP)})
         if self.sleep_max < self.sleep_min:
-            issues.append({"step": 2,
-                           "text": "La pause maximale est inferieure a la pause minimale."})
+            issues.append({"step": 2, "text": i18n.t("pause_inverted")})
         parent = self.archive.parent
         if not parent.exists():
-            issues.append({"step": 2,
-                           "text": f"Le dossier parent de destination n'existe pas : {parent}"})
+            issues.append({"step": 2, "text": i18n.t("parent_missing", path=parent)})
         return issues
 
     def problems(self) -> list[str]:

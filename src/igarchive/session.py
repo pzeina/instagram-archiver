@@ -115,6 +115,28 @@ def parse_cookie_blob(blob: str) -> dict[str, str]:
 # opening, verifying, keeping
 # ---------------------------------------------------------------------------
 
+def _client() -> Instaloader:
+    """The only way this module builds an instaloader client.
+
+    Its error() method prints to standard error regardless of the "quiet"
+    option, so an account rate limited by Instagram filled the terminal with the
+    same message over and over. Replacing the method keeps every message in
+    error_log -- where _probe reads them to tell an expired session from a check
+    that could not be made -- without any of them reaching the terminal.
+
+    Going through one factory is what stops a future call site from quietly
+    reintroducing the noise.
+    """
+    loader = Instaloader(quiet=True)
+    context = loader.context
+
+    def collect(msg, repeat_at_end=True):  # noqa: ARG001 -- signature is imposed
+        context.error_log.append(msg)
+
+    context.error = collect
+    return loader
+
+
 def _persist(loader: Instaloader, username: str) -> Path:
     directory = paths.sessions_dir()
     directory.mkdir(parents=True, exist_ok=True)
@@ -149,7 +171,7 @@ def open_from_cookies(cookies: dict[str, str], username: str = "") -> tuple[str,
     if "sessionid" not in cookies:
         raise SessionError(
 i18n.t("no_sessionid"))
-    loader = Instaloader(quiet=True)
+    loader = _client()
     loader.load_session(username or "unknown", cookies)
     actual = _verify(loader, username)
     loader.context.username = actual
@@ -169,7 +191,7 @@ def open_interactive(username: str, password: str | None = None) -> tuple[str, P
 
     The password is neither kept nor logged; only the resulting token is.
     """
-    loader = Instaloader(quiet=True)
+    loader = _client()
     try:
         if password:
             loader.login(username, password)
@@ -206,29 +228,12 @@ def open_auto(username: str = "") -> tuple[str, Path]:
     raise SessionError(i18n.t("no_browser_session") + "\n\n" + "\n".join(troubles))
 
 
-def _hush(loader: Instaloader) -> Instaloader:
-    """Stop instaloader from writing its errors to standard error.
-
-    Its error() method prints regardless of the "quiet" option, so an account
-    rate limited by Instagram filled the terminal with the same message. The
-    messages are still collected in error_log, where this module reads them to
-    tell an expired session from a check that could not be made.
-    """
-    context = loader.context
-
-    def collect(msg, repeat_at_end=True):  # noqa: ARG001 -- signature is imposed
-        context.error_log.append(msg)
-
-    context.error = collect
-    return loader
-
-
 def load(username: str) -> Instaloader:
     """Reload a session already opened. Raises SessionError if it is missing."""
     target = paths.sessions_dir() / f"{username}.session"
     if not target.exists():
         raise SessionError(i18n.t("no_saved_session", account=username))
-    loader = _hush(Instaloader(quiet=True))
+    loader = _client()
     try:
         loader.load_session_from_file(username, str(target))
     except (OSError, InstaloaderException) as exc:
@@ -334,16 +339,15 @@ def connect(username: str = "") -> dict:
     checked = _probe(username) if username else None
     if checked and checked["valid"]:
         invalidate(username)
-        return {**checked, "checked": True, "message": f"Connecte au compte {checked['account']}."}
+        return {**checked, "checked": True,
+                "message": i18n.t("connected_to", account=checked["account"])}
 
     try:
         account, _ = open_auto(username)
     except SessionError as exc:
         if checked and not checked["reachable"]:
             # Instagram refuses to answer: conclude nothing about the session.
-            return {**checked, "checked": True, "message":
-                    "Instagram n'a pas repondu — le compte est momentanement limite. "
-                    "Reessayez dans quelques minutes."}
+            return {**checked, "checked": True, "message": i18n.t("throttled")}
         return {"exists": bool(checked and checked["exists"]), "valid": False,
                 "account": None, "reachable": True, "checked": True,
                 "error": str(exc), "message": str(exc).splitlines()[0]}
@@ -351,9 +355,8 @@ def connect(username: str = "") -> dict:
     result = _probe(account)
     invalidate(account)
     return {**result, "checked": True,
-            "message": (f"Connecte au compte {account}." if result["valid"] else
-                        "Session ouverte mais Instagram ne l'a pas confirmee. "
-                        "Reessayez dans quelques minutes.")}
+            "message": (i18n.t("connected_to", account=account) if result["valid"]
+                        else i18n.t("unconfirmed"))}
 
 
 def invalidate(username: str | None = None) -> None:

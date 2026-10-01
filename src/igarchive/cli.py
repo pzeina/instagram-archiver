@@ -50,16 +50,16 @@ def cmd_session(args: argparse.Namespace) -> int:
         else:
             account, path = session.open_from_browser(args.browser or cfg.browser, username)
     except session.SessionError as exc:
-        print(f"Echec : {exc}", file=sys.stderr)
+        print(f"Failed: {exc}", file=sys.stderr)
         return 1
 
     cfg.username = account
     if args.browser:
         cfg.browser = args.browser
     cfg.save()
-    print(f"Session ouverte pour « {account} »")
-    print(f"  jeton  : {path}  (droits 600, a traiter comme un mot de passe)")
-    print(f"  reglage: {paths.config_file()}")
+    print(i18n.t("session_opened", account=account))
+    print(f"  token    : {path}  (mode 600, treat it as a password)")
+    print(f"  settings : {paths.config_file()}")
     return 0
 
 
@@ -69,13 +69,10 @@ def cmd_dyi(args: argparse.Namespace) -> int:
     if args.export:
         sources = [Path(args.export).expanduser()]
     else:
-        print("Recherche d'un export dans les telechargements et sur le bureau...")
+        print("Looking for an export in your downloads and on your desktop...")
         sources = dyi.find_exports()
         if not sources:
-            print("Aucun export Instagram trouve.\n"
-                  "Demande-le sur https://accountscenter.instagram.com/info_and_permissions/dyi/\n"
-                  "(format JSON, en cochant « Elements enregistres »), puis relance cette\n"
-                  "commande, ou indique le fichier avec --export.", file=sys.stderr)
+            print(i18n.t("no_export_cli"), file=sys.stderr)
             return 1
         for source in sources:
             print(f"  trouve : {source}")
@@ -83,7 +80,7 @@ def cmd_dyi(args: argparse.Namespace) -> int:
     try:
         parsed = dyi.parse_all(sources)
     except dyi.ExportError as exc:
-        print(f"Echec : {exc}", file=sys.stderr)
+        print(f"Failed: {exc}", file=sys.stderr)
         return 1
     merged, added = dyi.merge_into(fetch.read_saved_dates(cfg), parsed)
     cfg.ensure_dirs()
@@ -122,7 +119,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     try:
         loader = session.load(cfg.username)
     except session.SessionError as exc:
-        print(f"Echec : {exc}", file=sys.stderr)
+        print(f"Failed: {exc}", file=sys.stderr)
         return 1
 
     state = {"done": -1, "failed": -1}
@@ -138,8 +135,9 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     print(f"{verb} vers {cfg.archive}")
     result = fetch.run(cfg, loader, on_progress=on_progress, dry_run=args.dry_run)
 
-    print(f"\n{result.done} traites, {result.failed} en echec, "
-          f"{result.skipped} deja connus, {paths.human_bytes(result.bytes_total, cfg.language)}.")
+    print(f"\n{result.done} done, {result.failed} failed, "
+          f"{result.skipped} already known, "
+          f"{paths.human_bytes(result.bytes_total, cfg.language)}.")
     if result.message:
         print(result.message)
     if result.error:
@@ -198,7 +196,7 @@ def cmd_config(args: argparse.Namespace) -> int:
             key, _, raw = pair.partition("=")
             key = key.strip()
             if not hasattr(cfg, key):
-                print(f"Reglage inconnu : {key}", file=sys.stderr)
+                print(i18n.t("unknown_setting", key=key), file=sys.stderr)
                 return 1
             current = getattr(cfg, key)
             try:
@@ -227,62 +225,62 @@ def cmd_config(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="igarchive",
-        description="Archivage local de vos contenus Instagram enregistres.",
+        description="Local backup of your saved Instagram content.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
-            "Sans argument, l'interface de configuration s'ouvre dans le navigateur.\n"
-            "Enchainement habituel :  session -> dyi -> fetch -> catalog"
+            "With no argument, the settings interface opens in your browser.\n"
+            "Usual order:  session -> dyi -> fetch -> catalog"
         ),
     )
     parser.add_argument("--version", action="version", version=f"igarchive {__version__}")
     sub = parser.add_subparsers(dest="command")
 
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--archive-dir", dest="archive_dir", help="dossier de destination")
-    common.add_argument("--user", dest="username", help="compte Instagram")
+    common.add_argument("--archive-dir", dest="archive_dir", help="destination folder")
+    common.add_argument("--user", dest="username", help="Instagram account")
 
-    p = sub.add_parser("ui", help="ouvrir l'interface de configuration (par defaut)")
-    p.add_argument("--port", type=int, default=None, help="port d'ecoute local")
-    p.add_argument("--no-open", action="store_true", help="ne pas ouvrir le navigateur")
+    p = sub.add_parser("ui", help="open the settings interface (the default)")
+    p.add_argument("--port", type=int, default=None, help="local port to listen on")
+    p.add_argument("--no-open", action="store_true", help="do not open the browser")
     p.set_defaults(func=cmd_ui)
 
-    p = sub.add_parser("session", parents=[common], help="ouvrir une session Instagram")
+    p = sub.add_parser("session", parents=[common], help="open an Instagram session")
     p.add_argument("--browser", choices=session.SUPPORTED_BROWSERS,
-                   help="reprendre les cookies de ce navigateur (defaut : firefox)")
+                   help="take cookies from this browser (default: firefox)")
     p.add_argument("--cookie", metavar="VALEUR",
-                   help="coller un sessionid ou un en-tete Cookie ; « - » pour l'entree standard")
+                   help="paste a sessionid or a whole Cookie header; '-' reads standard input")
     p.add_argument("--password", action="store_true",
-                   help="se connecter par mot de passe (demande au terminal)")
+                   help="sign in with a password (asked at the terminal)")
     p.set_defaults(func=cmd_session)
 
     p = sub.add_parser("dyi", parents=[common],
-                       help="lire l'export officiel (dates d'enregistrement)")
-    p.add_argument("--export", help="chemin du .zip ou du dossier decompresse ; "
-                                    "sans cette option, l'export est cherche automatiquement")
+                       help="read the official export (save dates and collections)")
+    p.add_argument("--export", help="path of the .zip or unpacked folder; without it, "
+                                    "the export is looked for automatically")
     p.set_defaults(func=cmd_dyi)
 
-    p = sub.add_parser("fetch", parents=[common], help="telecharger les contenus enregistres")
+    p = sub.add_parser("fetch", parents=[common], help="back up saved content")
     p.add_argument("--limit", dest="limit_per_run", type=int,
-                   help="plafond de contenus pour cette passe")
+                   help="cap on items for this pass")
     p.add_argument("--stop-after-known", dest="stop_after_known", type=int, metavar="N",
-                   help="s'arreter apres N contenus deja connus d'affilee")
-    p.add_argument("--sleep-min", dest="sleep_min", type=float, help="pause minimale (s)")
-    p.add_argument("--sleep-max", dest="sleep_max", type=float, help="pause maximale (s)")
-    p.add_argument("--no-videos", action="store_true", help="metadonnees et images seulement")
-    p.add_argument("--comments", action="store_true", help="telecharger aussi les commentaires")
-    p.add_argument("--dry-run", action="store_true", help="lister sans rien telecharger")
+                   help="stop after N already-known items in a row")
+    p.add_argument("--sleep-min", dest="sleep_min", type=float, help="minimum pause (s)")
+    p.add_argument("--sleep-max", dest="sleep_max", type=float, help="maximum pause (s)")
+    p.add_argument("--no-videos", action="store_true", help="metadata and images only")
+    p.add_argument("--comments", action="store_true", help="download comments as well")
+    p.add_argument("--dry-run", action="store_true", help="list without downloading anything")
     p.set_defaults(func=cmd_fetch)
 
-    p = sub.add_parser("catalog", parents=[common], help="reconstruire le catalogue")
-    p.add_argument("--open", action="store_true", help="ouvrir le catalogue a la fin")
+    p = sub.add_parser("catalog", parents=[common], help="rebuild the catalogue")
+    p.add_argument("--open", action="store_true", help="open the catalogue afterwards")
     p.set_defaults(func=cmd_catalog)
 
-    p = sub.add_parser("status", parents=[common], help="etat de l'archive")
+    p = sub.add_parser("status", parents=[common], help="state of the archive")
     p.set_defaults(func=cmd_status)
 
-    p = sub.add_parser("config", parents=[common], help="afficher ou modifier les reglages")
-    p.add_argument("--set", action="append", metavar="CLE=VALEUR",
-                   help="modifier un reglage (repetable)")
+    p = sub.add_parser("config", parents=[common], help="show or change the settings")
+    p.add_argument("--set", action="append", metavar="KEY=VALUE",
+                   help="change a setting (repeatable)")
     p.set_defaults(func=cmd_config)
 
     return parser

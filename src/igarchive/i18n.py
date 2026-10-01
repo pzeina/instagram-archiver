@@ -255,3 +255,87 @@ STRINGS.update({
         "fr": "Identifiant et mot de passe sont tous deux requis.",
     },
 })
+
+STRINGS.update({
+    "session_opened": {
+        "en": "Session opened for {account}.",
+        "fr": "Session ouverte pour {account}.",
+    },
+    "no_account_set": {
+        "en": "No Instagram account set.",
+        "fr": "Aucun compte Instagram renseigne.",
+    },
+    "no_session_for": {
+        "en": "No session open for {account}.",
+        "fr": "Aucune session ouverte pour {account}.",
+    },
+    "pause_too_short": {
+        "en": "The minimum pause cannot go below {seconds} s.",
+        "fr": "La pause minimale ne peut pas descendre sous {seconds} s.",
+    },
+    "pause_inverted": {
+        "en": "The maximum pause is below the minimum pause.",
+        "fr": "La pause maximale est inferieure a la pause minimale.",
+    },
+    "parent_missing": {
+        "en": "The destination's parent folder does not exist: {path}",
+        "fr": "Le dossier parent de destination n'existe pas : {path}",
+    },
+})
+
+STRINGS.update({
+    "no_export_found": {
+        "en": "No Instagram export found in your downloads or on your desktop.\n"
+              "Request it at accountscenter.instagram.com (JSON format, "
+              "« Saved items »), then try again -- or drop the file above.",
+        "fr": "Aucun export Instagram trouve dans les telechargements ni sur le bureau.\n"
+              "Demandez-le sur accountscenter.instagram.com (format JSON, "
+              "« Elements enregistres »), puis reessayez -- ou deposez le fichier ci-dessus.",
+    },
+    "no_export_cli": {
+        "en": "No Instagram export found.\n"
+              "Request it at https://accountscenter.instagram.com/info_and_permissions/dyi/\n"
+              "(JSON format, ticking « Saved items »), then run this command again,\n"
+              "or name the file with --export.",
+        "fr": "Aucun export Instagram trouve.\n"
+              "Demandez-le sur https://accountscenter.instagram.com/info_and_permissions/dyi/\n"
+              "(format JSON, en cochant « Elements enregistres »), puis relancez cette\n"
+              "commande, ou indiquez le fichier avec --export.",
+    },
+    "export_missing_files": {
+        "en": "No {names} in {source}.\n"
+              "Check that you asked for the export in JSON format, ticking "
+              "« Saved items ».",
+        "fr": "Aucun fichier {names} dans {source}.\n"
+              "Verifiez d'avoir demande l'export au format JSON, en cochant "
+              "« Elements enregistres ».",
+    },
+})
+
+STRINGS.update({
+    "bad_export_source": {
+        "en": "Neither a .zip file nor a folder: {source}\n"
+              "Point at the .zip received by email, or at the folder it unpacks to.",
+        "fr": "Ni un fichier .zip ni un dossier : {source}\n"
+              "Indiquez le .zip recu par mail, ou le dossier obtenu en le decompressant.",
+    },
+    "port_busy": {
+        "en": "Cannot listen on port {port}: {error}\n"
+              "Another program is using it. Try:  igarchive ui --port {next}",
+        "fr": "Impossible d'ecouter sur le port {port} : {error}\n"
+              "Un autre programme l'utilise. Essayez :  igarchive ui --port {next}",
+    },
+})
+
+STRINGS.update({
+    "unknown_setting": {
+        "en": "Unknown setting: {key}", "fr": "Reglage inconnu : {key}"},
+    "already_open": {
+        "en": "igarchive is already running on {url} -- opening that window.",
+        "fr": "igarchive tourne deja sur {url} -- ouverture de cette fenetre.",
+    },
+    "stop_it_there": {
+        "en": "To stop it: Ctrl-C in the terminal where it runs.",
+        "fr": "Pour l'arreter : Ctrl-C dans le terminal ou elle tourne.",
+    },
+})

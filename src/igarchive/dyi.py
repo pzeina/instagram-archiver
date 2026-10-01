@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
+from igarchive import i18n
+
 SAVED_FILENAMES = ("saved_posts.json", "saved_collections.json")
 SHORTCODE_RE = re.compile(r"instagram\.com/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)")
 
@@ -63,10 +65,7 @@ def _iter_files(source: Path) -> Iterator[tuple[str, bytes]]:
             for path in sorted(source.rglob(name)):
                 yield str(path.relative_to(source)), path.read_bytes()
     else:
-        raise ExportError(
-            f"Ni un fichier .zip ni un dossier : {source}\n"
-            "Indique le .zip recu par mail, ou le dossier obtenu en le decompressant."
-        )
+        raise ExportError(i18n.t("bad_export_source", source=source))
 
 
 def _walk_entries(node: Any) -> Iterator[dict]:
@@ -147,11 +146,8 @@ def parse(source: Path) -> dict[str, dict]:
                 break
 
     if files_seen == 0:
-        raise ExportError(
-            f"Aucun fichier {' ni '.join(SAVED_FILENAMES)} dans {source}.\n"
-            "Verifie d'avoir demande l'export au format JSON, en cochant « Elements "
-            "enregistres »."
-        )
+        raise ExportError(i18n.t("export_missing_files",
+                                 names=" / ".join(SAVED_FILENAMES), source=source))
     return found
 
 
